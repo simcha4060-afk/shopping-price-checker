@@ -1,17 +1,16 @@
-// כתובות ה-Webhooks ב-n8n (התאם במידת הצורך לפי הכתובות המדויקות אצלך ב-n8n)
 const UPLOAD_URL = "https://sish4747.app.n8n.cloud/webhook/f799be46-abc5-415d-a556-eb1575457ea4";
 const GET_PRODUCTS_URL = "https://sish4747.app.n8n.cloud/webhook/get-products";
 const DELETE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/delete-product";
 const UPDATE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/update-product";
 
-// שמירת הנתונים המאוגדים בזיכרון
 let aggregatedProducts = {};
+let allRawItems = [];
 
 document.addEventListener("DOMContentLoaded", () => {
   loadProducts();
 });
 
-// 1. העלאת תמונת קבלה ל-n8n
+// 1. העלאת תמונת קבלה
 async function uploadReceipt(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -40,7 +39,7 @@ async function uploadReceipt(event) {
   }
 }
 
-// 2. טעינת הנתונים מ-Google Sheets דרך n8n
+// 2. טעינת מוצרים מ-n8n
 async function loadProducts() {
   const productsList = document.getElementById("productsList");
   if (!productsList) return;
@@ -66,14 +65,16 @@ async function loadProducts() {
       else items = [rawData];
     }
 
+    allRawItems = items;
     processAndRenderProducts(items);
+    calculateRecommendation(items);
   } catch (err) {
     console.error(err);
     productsList.innerHTML = "<p style='text-align:center; color:#dc3545;'>לא ניתן לטעון את רשימת המוצרים</p>";
   }
 }
 
-// 3. איגוד מוצרים זהים והצגתם ברשימה
+// 3. הצגת מוצרים
 function processAndRenderProducts(items) {
   const productsList = document.getElementById("productsList");
   productsList.innerHTML = "";
@@ -127,31 +128,20 @@ function processAndRenderProducts(items) {
     card.onclick = () => showPrices(product.name);
 
     card.innerHTML = `
-      <div style="flex: 1; padding-left: 10px;">
-        <strong style="font-size: 15px; color: #222;">${product.name}</strong>
-        <div style="font-size: 13px; color: #666; margin-top: 2px;">
-          ${product.latestStore} <span style="font-size: 12px; color: #888;">(${product.latestDate})</span>
+      <div style="flex: 1;">
+        <strong style="font-size: 15px; color: #1e293b;">${product.name}</strong>
+        <div style="font-size: 12px; color: #64748b; margin-top: 3px;">
+          ${product.latestStore} <span style="color: #94a3b8;">(${product.latestDate})</span>
         </div>
       </div>
-      <div style="font-weight: bold; color: #28a745; font-size: 17px; white-space: nowrap;">₪${product.latestPrice.toFixed(2)}</div>
+      <div style="font-weight: 700; color: #16a34a; font-size: 16px;">₪${product.latestPrice.toFixed(2)}</div>
     `;
 
     productsList.appendChild(card);
   });
 }
 
-// 4. חיפוש וסינון
-function filterProducts() {
-  const query = document.getElementById("searchInput").value.toLowerCase();
-  const cards = document.querySelectorAll(".product-card");
-
-  cards.forEach(card => {
-    const text = card.innerText.toLowerCase();
-    card.style.display = text.includes(query) ? "flex" : "none";
-  });
-}
-
-// 5. הצגת פופאפ היסטוריית ומחירי מוצר עם כפתורי עריכה/מחיקה
+// 4. הצגת Modal עם עריכת (חנות + מוצר + מחיר)
 function showPrices(productName) {
   const product = aggregatedProducts[productName];
   if (!product) return;
@@ -167,10 +157,10 @@ function showPrices(productName) {
 
     tr.innerHTML = `
       <td>${item.store || '-'}</td>
-      <td style="font-weight:bold; color:#28a745;">₪<span class="price-val">${item.price.toFixed(2)}</span></td>
+      <td style="font-weight:bold; color:#16a34a;">₪${item.price.toFixed(2)}</td>
       <td>${item.date || '-'}</td>
       <td style="white-space: nowrap;">
-        <button onclick="editRow(this, '${item.rowNumber}', '${item.rawProductName}', ${item.price})" style="cursor:pointer; background:none; border:none; font-size:16px;">✏️</button>
+        <button onclick="editRow('${item.rowNumber}', '${item.store}', '${item.rawProductName}', ${item.price})" style="cursor:pointer; background:none; border:none; font-size:16px;">✏️</button>
         <button onclick="deleteRow('${item.rowNumber}')" style="cursor:pointer; background:none; border:none; font-size:16px;">🗑️</button>
       </td>
     `;
@@ -180,7 +170,54 @@ function showPrices(productName) {
   document.getElementById("priceModal").style.display = "flex";
 }
 
-// 6. פונקציית מחיקת שורה
+// 5. עריכה מורחבת: חנות, מוצר ומחיר
+async function editRow(rowNumber, currentStore, currentName, currentPrice) {
+  if (!rowNumber || rowNumber === 'null') {
+    alert("לא ניתן לזהות את מספר השורה לעריכה");
+    return;
+  }
+
+  const newStore = prompt("עדכן שם חנות:", currentStore);
+  if (newStore === null) return;
+
+  const newName = prompt("עדכן שם מוצר:", currentName);
+  if (newName === null) return;
+
+  const newPriceStr = prompt("עדכן מחיר:", currentPrice);
+  if (newPriceStr === null) return;
+
+  const newPrice = parseFloat(newPriceStr);
+  if (isNaN(newPrice)) {
+    alert("מחיר לא תקין");
+    return;
+  }
+
+  try {
+    const response = await fetch(UPDATE_PRODUCT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        row_number: parseInt(rowNumber),
+        store: newStore,
+        product_name: newName,
+        price: newPrice
+      })
+    });
+
+    if (response.ok) {
+      alert("הנתונים עודכנו בהצלחה! ✅");
+      closeModal();
+      loadProducts();
+    } else {
+      alert("שגיאה בעדכון המוצר");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("שגיאה בתקשורת מול השרת");
+  }
+}
+
+// 6. מחיקה
 async function deleteRow(rowNumber) {
   if (!rowNumber || rowNumber === 'null') {
     alert("לא ניתן לזהות את מספר השורה למחיקה");
@@ -197,7 +234,7 @@ async function deleteRow(rowNumber) {
     });
 
     if (response.ok) {
-      alert("המוצר שנבחר נמחק בהצלחה! ✅");
+      alert("המוצר נמחק בהצלחה! ✅");
       closeModal();
       loadProducts();
     } else {
@@ -209,47 +246,50 @@ async function deleteRow(rowNumber) {
   }
 }
 
-// 7. פונקציית עריכת שורה
-async function editRow(btnElement, rowNumber, currentName, currentPrice) {
-  if (!rowNumber || rowNumber === 'null') {
-    alert("לא ניתן לזהות את מספר השורה לעריכה");
-    return;
-  }
+// 7. חישוב והצגת המלצת סל קניות
+function calculateRecommendation(items) {
+  const recommendationContainer = document.getElementById("recommendationBox");
+  if (!recommendationContainer) return;
 
-  const newName = prompt("הכנס שם מוצר חדש:", currentName);
-  if (newName === null) return; // ביטול
+  const storeTotals = {};
 
-  const newPriceStr = prompt("הכנס מחיר חדש:", currentPrice);
-  if (newPriceStr === null) return; // ביטול
+  items.forEach(item => {
+    const data = item.json ? item.json : item;
+    const store = data["שם החנות"] || data.store;
+    const price = parseFloat(data["מחיר המוצר"] || data["מחיר"] || data.price);
 
-  const newPrice = parseFloat(newPriceStr);
-  if (isNaN(newPrice)) {
-    alert("מחיר לא תקין");
-    return;
-  }
-
-  try {
-    const response = await fetch(UPDATE_PRODUCT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        row_number: parseInt(rowNumber),
-        product_name: newName,
-        price: newPrice
-      })
-    });
-
-    if (response.ok) {
-      alert("המוצר עודכן בהצלחה! ✅");
-      closeModal();
-      loadProducts();
-    } else {
-      alert("שגיאה בעדכון המוצר");
+    if (store && !isNaN(price)) {
+      storeTotals[store] = (storeTotals[store] || 0) + price;
     }
-  } catch (err) {
-    console.error(err);
-    alert("שגיאה בתקשורת מול השרת");
+  });
+
+  const stores = Object.keys(storeTotals);
+  if (stores.length < 2) {
+    recommendationContainer.innerHTML = "<p style='color:#64748b;'>💡 העלה קבלות מ-2 חנויות לפחות כדי לקבל המלצת סל קניות</p>";
+    return;
   }
+
+  let cheapestStore = stores[0];
+  stores.forEach(store => {
+    if (storeTotals[store] < storeTotals[cheapestStore]) {
+      cheapestStore = store;
+    }
+  });
+
+  recommendationContainer.innerHTML = `
+    <h3>💡 המלצת הקנייה לסל שלך</h3>
+    <p>החנות המשתלמת ביותר היא <strong>${cheapestStore}</strong> (סך הכל: ₪${storeTotals[cheapestStore].toFixed(2)})</p>
+  `;
+}
+
+function filterProducts() {
+  const query = document.getElementById("searchInput").value.toLowerCase();
+  const cards = document.querySelectorAll(".product-card");
+
+  cards.forEach(card => {
+    const text = card.innerText.toLowerCase();
+    card.style.display = text.includes(query) ? "flex" : "none";
+  });
 }
 
 function closeModal() {
