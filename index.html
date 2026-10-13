@@ -11,12 +11,10 @@
   <div class="container">
     <h1>השוואת מחירי קניות</h1>
 
-    <!-- סרגל חיפוש -->
     <div class="search-box">
       <input type="text" id="searchInput" onkeyup="filterProducts()" placeholder="🔍 חפש מוצר (למשל: חלב, לחם)...">
     </div>
 
-    <!-- כפתורי העלאת קבלה -->
     <div class="action-buttons">
       <label class="btn btn-camera">
         📷 צלם קבלה
@@ -31,12 +29,14 @@
     <div id="uploadStatus" class="status-msg"></div>
 
     <h2>מוצרים שנמצאו</h2>
-    <div id="productsList" class="products-grid">
-      <!-- כרטיסי המוצרים ייטענו לכאן -->
+    <div id="productsList" class="products-grid"></div>
+
+    <!-- כרטיס המלצת סל -->
+    <div id="recommendationBox" class="recommendation-card">
+      <p style="color:#64748b;">טוען נתוני המלצה...</p>
     </div>
   </div>
 
-  <!-- Modal היסטוריית מחירים + עריכה ومחיקה -->
   <div id="priceModal" class="modal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeModal()">&times;</span>
@@ -51,9 +51,7 @@
             <th>פעולות</th>
           </tr>
         </thead>
-        <tbody id="modalPriceTableBody">
-          <!-- שורות ההיסטוריה ייטענו לכאן -->
-        </tbody>
+        <tbody id="modalPriceTableBody"></tbody>
       </table>
     </div>
   </div>
