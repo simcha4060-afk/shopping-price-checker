@@ -48,7 +48,6 @@ async function loadProducts() {
     if (!response.ok) throw new Error("שגיאה בטעינת הנתונים");
 
     const rawData = await response.json();
-    console.log("נתונים שהתקבלו מ-n8n:", rawData);
 
     let items = [];
     if (Array.isArray(rawData)) {
@@ -66,7 +65,7 @@ async function loadProducts() {
   }
 }
 
-// 3. הצגת המוצרים
+// 3. הצגת המוצרים ברשימה
 function renderProducts(items) {
   const productsList = document.getElementById("productsList");
   productsList.innerHTML = "";
@@ -77,25 +76,24 @@ function renderProducts(items) {
   }
 
   items.forEach(item => {
-    // חילוץ האובייקט גם אם מגיע בפורמט n8n
     const data = item.json ? item.json : item;
 
-    // התאמה מדויקת לכותרות העמודות מהגיליון שלך
-    const store = data["שם החנות"] || data.store || "חנות כללית";
+    const store = data["שם החנות"] || data.store || "-";
     const date = data["תאריך"] || data.date || "";
-    const total = data["סכום כולל"] || data.total || "";
-    const products = data["פרוט מוצרים"] || data["פירוט מוצרים"] || data.products || "";
+    const productName = data["שם המוצר"] || data.product_name || "-";
+    const price = data["מחיר המוצר"] || data["מחיר"] || data.price || "";
 
     const card = document.createElement("div");
     card.className = "product-card";
     
     card.innerHTML = `
       <div style="flex: 1; padding-left: 10px;">
-        <strong style="font-size: 15px; color: #222;">${store}</strong> 
-        <span style="font-size: 12px; color: #777;">${date ? '(' + date + ')' : ''}</span>
-        <div style="font-size: 13px; color: #555; margin-top: 4px; line-height: 1.4;">${products}</div>
+        <strong style="font-size: 15px; color: #222;">${productName}</strong>
+        <div style="font-size: 13px; color: #666; margin-top: 2px;">
+          ${store} <span style="font-size: 12px; color: #888;">${date ? '(' + date + ')' : ''}</span>
+        </div>
       </div>
-      <div style="font-weight: bold; color: #28a745; font-size: 17px; white-space: nowrap;">${total ? '₪' + total : ''}</div>
+      <div style="font-weight: bold; color: #28a745; font-size: 17px; white-space: nowrap;">${price ? '₪' + price : ''}</div>
     `;
 
     productsList.appendChild(card);
