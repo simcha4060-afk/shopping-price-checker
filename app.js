@@ -1,7 +1,5 @@
-// כתובת ה-Webhook להעלאת קבלה (POST)
+// כתובות ה-Webhooks ב-n8n
 const UPLOAD_URL = "https://sish4747.app.n8n.cloud/webhook/f799be46-abc5-415d-a556-eb1575457ea4";
-
-// כתובת ה-Webhook לקריאת הנתונים מ-Google Sheets (GET)
 const GET_PRODUCTS_URL = "https://sish4747.app.n8n.cloud/webhook/get-products";
 
 // טעינת המוצרים מיד עם פתיחת האפליקציה
@@ -28,7 +26,7 @@ async function uploadReceipt(event) {
 
     if (response.ok) {
       statusElement.innerText = "הקבלה פוענחה ונשמרה בהצלחה! ✅";
-      setTimeout(loadProducts, 1500); // רענון אוטומטי של הרשימה לאחר שמירה
+      setTimeout(loadProducts, 1500);
     } else {
       statusElement.innerText = "שגיאה בפענוח הקבלה ❌";
     }
@@ -49,15 +47,26 @@ async function loadProducts() {
     const response = await fetch(GET_PRODUCTS_URL);
     if (!response.ok) throw new Error("שגיאה בטעינת הנתונים");
 
-    const data = await response.json();
-    renderProducts(data);
+    const rawData = await response.json();
+    console.log("נתונים שהתקבלו מ-n8n:", rawData);
+
+    let items = [];
+    if (Array.isArray(rawData)) {
+      items = rawData;
+    } else if (rawData && typeof rawData === "object") {
+      if (Array.isArray(rawData.data)) items = rawData.data;
+      else if (Array.isArray(rawData.items)) items = rawData.items;
+      else items = [rawData];
+    }
+
+    renderProducts(items);
   } catch (err) {
     console.error(err);
-    productsList.innerHTML = "<p style='text-align:center; color:#dc3545;'>לא ניתן שטען את רשימת המוצרים</p>";
+    productsList.innerHTML = "<p style='text-align:center; color:#dc3545;'>לא ניתן לטעון את רשימת המוצרים</p>";
   }
 }
 
-// 3. הצגת כרטיסי המוצרים בתיבת הרשימה
+// 3. הצגת המוצרים
 function renderProducts(items) {
   const productsList = document.getElementById("productsList");
   productsList.innerHTML = "";
@@ -68,29 +77,32 @@ function renderProducts(items) {
   }
 
   items.forEach(item => {
+    // חילוץ האובייקט גם אם מגיע בפורמט n8n
+    const data = item.json ? item.json : item;
+
+    // התאמה מדויקת לכותרות העמודות מהגיליון שלך
+    const store = data["שם החנות"] || data.store || "חנות כללית";
+    const date = data["תאריך"] || data.date || "";
+    const total = data["סכום כולל"] || data.total || "";
+    const products = data["פרוט מוצרים"] || data["פירוט מוצרים"] || data.products || "";
+
     const card = document.createElement("div");
     card.className = "product-card";
     
-    // שליפת הנתונים לפי שמות העמודות ב-Google Sheets
-    const store = item["שם החנות"] || item.store || "-";
-    const date = item["תאריך"] || item.date || "-";
-    const total = item["סכום כולל"] || item.total || "-";
-    const products = item["פרוט מוצרים"] || item.products || "-";
-
     card.innerHTML = `
       <div style="flex: 1; padding-left: 10px;">
         <strong style="font-size: 15px; color: #222;">${store}</strong> 
-        <span style="font-size: 12px; color: #777;">(${date})</span>
+        <span style="font-size: 12px; color: #777;">${date ? '(' + date + ')' : ''}</span>
         <div style="font-size: 13px; color: #555; margin-top: 4px; line-height: 1.4;">${products}</div>
       </div>
-      <div style="font-weight: bold; color: #28a745; font-size: 17px; white-space: nowrap;">₪${total}</div>
+      <div style="font-weight: bold; color: #28a745; font-size: 17px; white-space: nowrap;">${total ? '₪' + total : ''}</div>
     `;
 
     productsList.appendChild(card);
   });
 }
 
-// 4. סינון מוצרים לפי חיפוש
+// 4. חיפוש וסינון
 function filterProducts() {
   const query = document.getElementById("searchInput").value.toLowerCase();
   const cards = document.querySelectorAll(".product-card");
@@ -101,7 +113,6 @@ function filterProducts() {
   });
 }
 
-// 5. פונקציות חלון פופאפ (Modal)
 function showPrices(productName, storePrices) {
   document.getElementById("modalProductName").innerText = productName;
   const tbody = document.getElementById("modalPriceTableBody");
