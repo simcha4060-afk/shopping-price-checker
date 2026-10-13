@@ -4,13 +4,11 @@ const DELETE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/delete-produc
 const UPDATE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/update-product";
 
 let aggregatedProducts = {};
-let allRawItems = [];
 
 document.addEventListener("DOMContentLoaded", () => {
   loadProducts();
 });
 
-// 1. העלאת תמונת קבלה
 async function uploadReceipt(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -39,7 +37,6 @@ async function uploadReceipt(event) {
   }
 }
 
-// 2. טעינת מוצרים מ-n8n
 async function loadProducts() {
   const productsList = document.getElementById("productsList");
   if (!productsList) return;
@@ -65,7 +62,6 @@ async function loadProducts() {
       else items = [rawData];
     }
 
-    allRawItems = items;
     processAndRenderProducts(items);
     calculateRecommendation(items);
   } catch (err) {
@@ -74,7 +70,6 @@ async function loadProducts() {
   }
 }
 
-// 3. הצגת מוצרים
 function processAndRenderProducts(items) {
   const productsList = document.getElementById("productsList");
   productsList.innerHTML = "";
@@ -141,10 +136,11 @@ function processAndRenderProducts(items) {
   });
 }
 
-// 4. הצגת Modal עם עריכת (חנות + מוצר + מחיר)
 function showPrices(productName) {
   const product = aggregatedProducts[productName];
   if (!product) return;
+
+  cancelEdit(); // איפוס טופס העריכה אם היה פתוח
 
   document.getElementById("modalProductName").innerText = product.name;
   const tbody = document.getElementById("modalPriceTableBody");
@@ -160,7 +156,7 @@ function showPrices(productName) {
       <td style="font-weight:bold; color:#16a34a;">₪${item.price.toFixed(2)}</td>
       <td>${item.date || '-'}</td>
       <td style="white-space: nowrap;">
-        <button onclick="editRow('${item.rowNumber}', '${item.store}', '${item.rawProductName}', ${item.price})" style="cursor:pointer; background:none; border:none; font-size:16px;">✏️</button>
+        <button onclick="openEditForm('${item.rowNumber}', '${item.store}', '${item.rawProductName}', ${item.price}, '${item.date}')" style="cursor:pointer; background:none; border:none; font-size:16px;">✏️</button>
         <button onclick="deleteRow('${item.rowNumber}')" style="cursor:pointer; background:none; border:none; font-size:16px;">🗑️</button>
       </td>
     `;
@@ -170,25 +166,31 @@ function showPrices(productName) {
   document.getElementById("priceModal").style.display = "flex";
 }
 
-// 5. עריכה מורחבת: חנות, מוצר ומחיר
-async function editRow(rowNumber, currentStore, currentName, currentPrice) {
+// פתיחת טופס העריכה המרוכז
+function openEditForm(rowNumber, store, productName, price, date) {
+  document.getElementById("editRowNumber").value = rowNumber;
+  document.getElementById("editStore").value = store;
+  document.getElementById("editProductName").value = productName;
+  document.getElementById("editPrice").value = price;
+  document.getElementById("editDate").value = date;
+
+  document.getElementById("editFormContainer").style.display = "block";
+}
+
+function cancelEdit() {
+  document.getElementById("editFormContainer").style.display = "none";
+}
+
+// שמירת העריכה ושליחה ל-n8n
+async function saveEdit() {
+  const rowNumber = document.getElementById("editRowNumber").value;
+  const store = document.getElementById("editStore").value;
+  const productName = document.getElementById("editProductName").value;
+  const price = parseFloat(document.getElementById("editPrice").value);
+  const date = document.getElementById("editDate").value;
+
   if (!rowNumber || rowNumber === 'null') {
-    alert("לא ניתן לזהות את מספר השורה לעריכה");
-    return;
-  }
-
-  const newStore = prompt("עדכן שם חנות:", currentStore);
-  if (newStore === null) return;
-
-  const newName = prompt("עדכן שם מוצר:", currentName);
-  if (newName === null) return;
-
-  const newPriceStr = prompt("עדכן מחיר:", currentPrice);
-  if (newPriceStr === null) return;
-
-  const newPrice = parseFloat(newPriceStr);
-  if (isNaN(newPrice)) {
-    alert("מחיר לא תקין");
+    alert("שגיאה בזיהוי שורת המוצר");
     return;
   }
 
@@ -198,9 +200,10 @@ async function editRow(rowNumber, currentStore, currentName, currentPrice) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         row_number: parseInt(rowNumber),
-        store: newStore,
-        product_name: newName,
-        price: newPrice
+        store: store,
+        product_name: productName,
+        price: price,
+        date: date
       })
     });
 
@@ -217,7 +220,6 @@ async function editRow(rowNumber, currentStore, currentName, currentPrice) {
   }
 }
 
-// 6. מחיקה
 async function deleteRow(rowNumber) {
   if (!rowNumber || rowNumber === 'null') {
     alert("לא ניתן לזהות את מספר השורה למחיקה");
@@ -246,7 +248,6 @@ async function deleteRow(rowNumber) {
   }
 }
 
-// 7. חישוב והצגת המלצת סל קניות
 function calculateRecommendation(items) {
   const recommendationContainer = document.getElementById("recommendationBox");
   if (!recommendationContainer) return;
