@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadProducts();
 });
 
+// 1. העלאת תמונת קבלה
 async function uploadReceipt(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -37,6 +38,7 @@ async function uploadReceipt(event) {
   }
 }
 
+// 2. טעינת נתונים מ-n8n
 async function loadProducts() {
   const productsList = document.getElementById("productsList");
   if (!productsList) return;
@@ -70,6 +72,7 @@ async function loadProducts() {
   }
 }
 
+// 3. איגוד מוצרים זהים והצגתם ברשימה
 function processAndRenderProducts(items) {
   const productsList = document.getElementById("productsList");
   productsList.innerHTML = "";
@@ -136,11 +139,12 @@ function processAndRenderProducts(items) {
   });
 }
 
+// 4. הצגת פופאפ היסטוריית מחירים
 function showPrices(productName) {
   const product = aggregatedProducts[productName];
   if (!product) return;
 
-  cancelEdit(); // איפוס טופס העריכה אם היה פתוח
+  cancelEdit(); // סגירת טופס העריכה במידה והיה פתוח
 
   document.getElementById("modalProductName").innerText = product.name;
   const tbody = document.getElementById("modalPriceTableBody");
@@ -166,7 +170,7 @@ function showPrices(productName) {
   document.getElementById("priceModal").style.display = "flex";
 }
 
-// פתיחת טופס העריכה המרוכז
+// 5. פתיחת טופס עריכה מרוכז
 function openEditForm(rowNumber, store, productName, price, date) {
   document.getElementById("editRowNumber").value = rowNumber;
   document.getElementById("editStore").value = store;
@@ -181,7 +185,7 @@ function cancelEdit() {
   document.getElementById("editFormContainer").style.display = "none";
 }
 
-// שמירת העריכה ושליחה ל-n8n
+// 6. שמירת עריכה ל-n8n
 async function saveEdit() {
   const rowNumber = document.getElementById("editRowNumber").value;
   const store = document.getElementById("editStore").value;
@@ -220,6 +224,7 @@ async function saveEdit() {
   }
 }
 
+// 7. מחיקת שורה
 async function deleteRow(rowNumber) {
   if (!rowNumber || rowNumber === 'null') {
     alert("לא ניתן לזהות את מספר השורה למחיקה");
@@ -248,41 +253,66 @@ async function deleteRow(rowNumber) {
   }
 }
 
+// 8. אלגוריתם המלצה חכם למוצרים חופפים בלבד
 function calculateRecommendation(items) {
   const recommendationContainer = document.getElementById("recommendationBox");
   if (!recommendationContainer) return;
 
-  const storeTotals = {};
+  const productPricesByStore = {};
 
   items.forEach(item => {
     const data = item.json ? item.json : item;
     const store = data["שם החנות"] || data.store;
+    const productName = (data["שם המוצר"] || data.product_name || "").trim();
     const price = parseFloat(data["מחיר המוצר"] || data["מחיר"] || data.price);
 
-    if (store && !isNaN(price)) {
-      storeTotals[store] = (storeTotals[store] || 0) + price;
+    if (store && productName && !isNaN(price) && productName !== "empty") {
+      if (!productPricesByStore[productName]) {
+        productPricesByStore[productName] = {};
+      }
+      productPricesByStore[productName][store] = price;
     }
   });
 
-  const stores = Object.keys(storeTotals);
-  if (stores.length < 2) {
-    recommendationContainer.innerHTML = "<p style='color:#64748b;'>💡 העלה קבלות מ-2 חנויות לפחות כדי לקבל המלצת סל קניות</p>";
+  const overlappingProducts = [];
+  const storeComparisonTotals = {};
+
+  Object.keys(productPricesByStore).forEach(productName => {
+    const storesForProduct = Object.keys(productPricesByStore[productName]);
+    
+    if (storesForProduct.length >= 2) {
+      overlappingProducts.push(productName);
+      
+      storesForProduct.forEach(store => {
+        storeComparisonTotals[store] = (storeComparisonTotals[store] || 0) + productPricesByStore[productName][store];
+      });
+    }
+  });
+
+  if (overlappingProducts.length === 0) {
+    recommendationContainer.innerHTML = `
+      <p style="color:#64748b;">💡 <strong>השוואת סל:</strong> עדיין לא נרכשו מוצרים זהים בחנויות שונות.<br>
+      כאשר תעלה קבלה עם מוצרים חופפים שנרכשו ביותר מחנות אחת, תופיע כאן השוואת מחיר מדויקת.</p>
+    `;
     return;
   }
 
+  const stores = Object.keys(storeComparisonTotals);
   let cheapestStore = stores[0];
+
   stores.forEach(store => {
-    if (storeTotals[store] < storeTotals[cheapestStore]) {
+    if (storeComparisonTotals[store] < storeComparisonTotals[cheapestStore]) {
       cheapestStore = store;
     }
   });
 
   recommendationContainer.innerHTML = `
-    <h3>💡 המלצת הקנייה לסל שלך</h3>
-    <p>החנות המשתלמת ביותר היא <strong>${cheapestStore}</strong> (סך הכל: ₪${storeTotals[cheapestStore].toFixed(2)})</p>
+    <h3>💡 המלצת הקנייה למוצרים חופפים (${overlappingProducts.length} מוצרים)</h3>
+    <p>עבור המוצרים שנקנו בכמה חנויות (<strong>${overlappingProducts.join(', ')}</strong>), החנות המשתלמת ביותר היא <strong>${cheapestStore}</strong> בסך ₪${storeComparisonTotals[cheapestStore].toFixed(2)}!</p>
   `;
 }
 
+// 9. חיפוש וסינון
 function filterProducts() {
   const query = document.getElementById("searchInput").value.toLowerCase();
   const cards = document.querySelectorAll(".product-card");
