@@ -2,6 +2,9 @@
 const UPLOAD_URL = "https://sish4747.app.n8n.cloud/webhook/f799be46-abc5-415d-a556-eb1575457ea4";
 const GET_PRODUCTS_URL = "https://sish4747.app.n8n.cloud/webhook/get-products";
 
+// שמירת הנתונים המאוגדים בזיכרון לשימוש בחיפוש ופופאפ
+let aggregatedProducts = {};
+
 document.addEventListener("DOMContentLoaded", () => {
   loadProducts();
 });
@@ -47,14 +50,11 @@ async function loadProducts() {
     if (!response.ok) throw new Error("שגיאה בטעינת הנתונים");
 
     const rawData = await response.json();
-    console.log("נתונים שהתקבלו מ-n8n:", rawData);
 
     let items = [];
-
-    // חילוץ המערך מכל פורמט ש-n8n מחזיר
     if (Array.isArray(rawData)) {
       if (rawData.length > 0 && rawData[0].data && Array.isArray(rawData[0].data)) {
-        items = rawData[0].data; // פורמט של Aggregate
+        items = rawData[0].data;
       } else {
         items = rawData;
       }
@@ -64,56 +64,79 @@ async function loadProducts() {
       else items = [rawData];
     }
 
-    renderProducts(items);
+    processAndRenderProducts(items);
   } catch (err) {
     console.error(err);
     productsList.innerHTML = "<p style='text-align:center; color:#dc3545;'>לא ניתן לטעון את רשימת המוצרים</p>";
   }
 }
 
-// 3. הצגת המוצרים ברשימה
-function renderProducts(items) {
+// 3. איגוד מוצרים זהים והצגתם ברשימה
+function processAndRenderProducts(items) {
   const productsList = document.getElementById("productsList");
   productsList.innerHTML = "";
 
-  if (!items || items.length === 0) {
-    productsList.innerHTML = "<p style='text-align:center; color:#888;'>לא נמצאו מוצרים במערכת</p>";
-    return;
-  }
-
-  let count = 0;
+  aggregatedProducts = {};
 
   items.forEach(item => {
     const data = item.json ? item.json : item;
 
     const store = data["שם החנות"] || data.store || "-";
     const date = data["תאריך"] || data.date || "";
-    const productName = data["שם המוצר"] || data.product_name || "";
-    const price = data["מחיר המוצר"] || data["מחיר"] || data.price || "";
+    const rawProductName = data["שם המוצר"] || data.product_name || "";
+    const price = parseFloat(data["מחיר המוצר"] || data["מחיר"] || data.price);
 
-    if (!productName || productName === "empty") return;
+    if (!rawProductName || rawProductName === "empty" || isNaN(price)) return;
 
-    count++;
+    // מפתח איחוד נקי לפי שם המוצר
+    const key = rawProductName.trim();
 
+    if (!aggregatedProducts[key]) {
+      aggregatedProducts[key] = {
+        name: key,
+        latestPrice: price,
+        latestStore: store,
+        latestDate: date,
+        history: []
+      };
+    }
+
+    const currentGroup = aggregatedProducts[key];
+    currentGroup.history.push({ store, date, price });
+
+    // עדכון למחיר והתאריך העדכניים ביותר
+    if (!currentGroup.latestDate || new Date(date) >= new Date(currentGroup.latestDate)) {
+      currentGroup.latestPrice = price;
+      currentGroup.latestStore = store;
+      currentGroup.latestDate = date;
+    }
+  });
+
+  const keys = Object.keys(aggregatedProducts);
+
+  if (keys.length === 0) {
+    productsList.innerHTML = "<p style='text-align:center; color:#888;'>לא נמצאו מוצרים תקינים</p>";
+    return;
+  }
+
+  keys.forEach(key => {
+    const product = aggregatedProducts[key];
     const card = document.createElement("div");
     card.className = "product-card";
-    
+    card.onclick = () => showPrices(product.name);
+
     card.innerHTML = `
       <div style="flex: 1; padding-left: 10px;">
-        <strong style="font-size: 15px; color: #222;">${productName}</strong>
+        <strong style="font-size: 15px; color: #222;">${product.name}</strong>
         <div style="font-size: 13px; color: #666; margin-top: 2px;">
-          ${store} <span style="font-size: 12px; color: #888;">${date ? '(' + date + ')' : ''}</span>
+          ${product.latestStore} <span style="font-size: 12px; color: #888;">(${product.latestDate})</span>
         </div>
       </div>
-      <div style="font-weight: bold; color: #28a745; font-size: 17px; white-space: nowrap;">${price ? '₪' + price : ''}</div>
+      <div style="font-weight: bold; color: #28a745; font-size: 17px; white-space: nowrap;">₪${product.latestPrice.toFixed(2)}</div>
     `;
 
     productsList.appendChild(card);
   });
-
-  if (count === 0) {
-    productsList.innerHTML = "<p style='text-align:center; color:#888;'>לא נמצאו מוצרים תקינים</p>";
-  }
 }
 
 // 4. חיפוש וסינון
@@ -127,21 +150,26 @@ function filterProducts() {
   });
 }
 
-function showPrices(productName, storePrices) {
-  document.getElementById("modalProductName").innerText = productName;
+// 5. הצגת פופאפ היסטוריית ומחירי מוצר
+function showPrices(productName) {
+  const product = aggregatedProducts[productName];
+  if (!product) return;
+
+  document.getElementById("modalProductName").innerText = product.name;
   const tbody = document.getElementById("modalPriceTableBody");
   tbody.innerHTML = "";
 
-  if (Array.isArray(storePrices)) {
-    storePrices.forEach(item => {
-      const row = `<tr>
-        <td>${item.store || '-'}</td>
-        <td>${item.price ? item.price + ' ₪' : '-'}</td>
-        <td>${item.date || '-'}</td>
-      </tr>`;
-      tbody.innerHTML += row;
-    });
-  }
+  // מיון היסטוריית המחירים מהחדש לבישן
+  const sortedHistory = [...product.history].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  sortedHistory.forEach(item => {
+    const row = `<tr>
+      <td>${item.store || '-'}</td>
+      <td style="font-weight:bold; color:#28a745;">₪${item.price.toFixed(2)}</td>
+      <td>${item.date || '-'}</td>
+    </tr>`;
+    tbody.innerHTML += row;
+  });
 
   document.getElementById("priceModal").style.display = "flex";
 }
