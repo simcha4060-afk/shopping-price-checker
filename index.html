@@ -11,10 +11,12 @@
   <div class="container">
     <h1>השוואת מחירי קניות</h1>
 
+    <!-- סרגל חיפוש -->
     <div class="search-box">
       <input type="text" id="searchInput" onkeyup="filterProducts()" placeholder="🔍 חפש מוצר (למשל: חלב, לחם)...">
     </div>
 
+    <!-- כפתורי העלאה -->
     <div class="action-buttons">
       <label class="btn btn-camera">
         📷 צלם קבלה
@@ -31,6 +33,7 @@
     <h2>מוצרים שנמצאו</h2>
     <div id="productsList" class="products-grid"></div>
 
+    <!-- כרטיס המלצת סל -->
     <div id="recommendationBox" class="recommendation-card">
       <p style="color:#64748b;">טוען נתוני המלצה...</p>
     </div>
@@ -55,7 +58,7 @@
         <tbody id="modalPriceTableBody"></tbody>
       </table>
 
-      <!-- טופס עריכה יחיד ומרוכז (מוסתר כברירת מחדל) -->
+      <!-- טופס עריכה מרוכז (מוסתר כברירת מחדל) -->
       <div id="editFormContainer" style="display: none; margin-top: 15px; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;">
         <h4 style="margin-bottom: 10px; color: #1e293b;">✏️ עריכת פרטי רכישה</h4>
         <input type="hidden" id="editRowNumber">
