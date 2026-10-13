@@ -4,82 +4,55 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>השוואת מחירי קניות</title>
-  
-  <!-- עיצוב -->
   <link rel="stylesheet" href="style.css">
-
-  <!-- הגדרות PWA והתקנה כאפליקציה -->
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" href="icon-192.png">
-  <link rel="apple-touch-icon" href="icon-192.png">
-  <meta name="theme-color" content="#007bff">
-
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
-    }
-  </script>
 </head>
 <body>
 
-  <!-- חלק עליון: כותרת וסרגל חיפוש -->
-  <header>
+  <div class="container">
     <h1>השוואת מחירי קניות</h1>
+
+    <!-- סרגל חיפוש -->
     <div class="search-box">
-      <input type="text" id="searchInput" placeholder="חפש מוצר (למשל: חלב, לחם)..." oninput="filterProducts()">
-      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" onkeyup="filterProducts()" placeholder="🔍 חפש מוצר (למשל: חלב, לחם)...">
     </div>
-  </header>
 
-  <main>
-    <!-- כפתורי צילום והעלאת קבלה -->
-    <section class="upload-section">
-      <div class="buttons-container">
-        <!-- כפתור לפתיחת המצלמה ישירות -->
-        <label for="receiptCameraDirect" class="upload-btn camera-btn">
-          📷 צלם קבלה
-        </label>
-        <input type="file" id="receiptCameraDirect" accept="image/*" capture="environment" onchange="uploadReceipt(event)">
+    <!-- כפתורי העלאת קבלה -->
+    <div class="action-buttons">
+      <label class="btn btn-camera">
+        📷 צלם קבלה
+        <input type="file" accept="image/*" capture="environment" onchange="uploadReceipt(event)" hidden>
+      </label>
+      <label class="btn btn-gallery">
+        🖼️ בחר מהגלריה
+        <input type="file" accept="image/*" onchange="uploadReceipt(event)" hidden>
+      </label>
+    </div>
 
-        <!-- כפתור לבחירת תמונה מהגלריה -->
-        <label for="receiptGallery" class="upload-btn gallery-btn">
-          🖼️ בחר מהגלריה
-        </label>
-        <input type="file" id="receiptGallery" accept="image/*" onchange="uploadReceipt(event)">
-      </div>
-      <p id="uploadStatus"></p>
-    </section>
+    <div id="uploadStatus" class="status-msg"></div>
 
-    <!-- רשימת המוצרים -->
-    <section class="products-section">
-      <h2>מוצרים שנמצאו</h2>
-      <div id="productsList" class="products-list">
-        <!-- המוצרים ייטענו לכאן דינמית מ-Google Sheets -->
-      </div>
-    </section>
-  </main>
+    <h2>מוצרים שנמצאו</h2>
+    <div id="productsList" class="products-grid">
+      <!-- כרטיסי המוצרים ייטענו לכאן -->
+    </div>
+  </div>
 
-  <!-- ווידג'ט המלצת הקנייה בתחתית המסך -->
-  <footer class="best-store-widget" id="bestStoreWidget">
-    <h3>💡 המלצת הקנייה לסל שלך</h3>
-    <p id="recommendationText">טוען נתונים...</p>
-  </footer>
-
-  <!-- פופאפ (Modal) להצגת מחירי מוצר בחנויות -->
+  <!-- Modal היסטוריית מחירים + עריכה ومחיקה -->
   <div id="priceModal" class="modal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeModal()">&times;</span>
       <h3 id="modalProductName">שם המוצר</h3>
+      
       <table class="price-table">
         <thead>
           <tr>
             <th>חנות</th>
             <th>מחיר</th>
-            <th>תאריך עדכון</th>
+            <th>תאריך</th>
+            <th>פעולות</th>
           </tr>
         </thead>
         <tbody id="modalPriceTableBody">
-          <!-- מחירי חנויות ייטענו לכאן -->
+          <!-- שורות ההיסטוריה ייטענו לכאן -->
         </tbody>
       </table>
     </div>
