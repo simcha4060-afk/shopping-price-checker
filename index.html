@@ -32,12 +32,21 @@
   </header>
 
   <main>
-    <!-- כפתור צילום / העלאת קבלה -->
+    <!-- כפתורי צילום והעלאת קבלה -->
     <section class="upload-section">
-      <label for="receiptCamera" class="upload-btn">
-        📷 צלם / העלה קבלה
-      </label>
-      <input type="file" id="receiptCamera" accept="image/*" onchange="uploadReceipt(event)">
+      <div class="buttons-container">
+        <!-- כפתור לפתיחת המצלמה ישירות -->
+        <label for="receiptCameraDirect" class="upload-btn camera-btn">
+          📷 צלם קבלה
+        </label>
+        <input type="file" id="receiptCameraDirect" accept="image/*" capture="environment" onchange="uploadReceipt(event)">
+
+        <!-- כפתור לבחירת תמונה מהגלריה -->
+        <label for="receiptGallery" class="upload-btn gallery-btn">
+          🖼️ בחר מהגלריה
+        </label>
+        <input type="file" id="receiptGallery" accept="image/*" onchange="uploadReceipt(event)">
+      </div>
       <p id="uploadStatus"></p>
     </section>
 
