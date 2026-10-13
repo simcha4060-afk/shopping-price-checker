@@ -1,8 +1,10 @@
-// כתובות ה-Webhooks ב-n8n
+// כתובות ה-Webhooks ב-n8n (התאם במידת הצורך לפי הכתובות המדויקות אצלך ב-n8n)
 const UPLOAD_URL = "https://sish4747.app.n8n.cloud/webhook/f799be46-abc5-415d-a556-eb1575457ea4";
 const GET_PRODUCTS_URL = "https://sish4747.app.n8n.cloud/webhook/get-products";
+const DELETE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/delete-product";
+const UPDATE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/update-product";
 
-// שמירת הנתונים המאוגדים בזיכרון לשימוש בחיפוש ופופאפ
+// שמירת הנתונים המאוגדים בזיכרון
 let aggregatedProducts = {};
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -81,6 +83,7 @@ function processAndRenderProducts(items) {
   items.forEach(item => {
     const data = item.json ? item.json : item;
 
+    const rowNumber = data.row_number || item.row_number || null;
     const store = data["שם החנות"] || data.store || "-";
     const date = data["תאריך"] || data.date || "";
     const rawProductName = data["שם המוצר"] || data.product_name || "";
@@ -88,7 +91,6 @@ function processAndRenderProducts(items) {
 
     if (!rawProductName || rawProductName === "empty" || isNaN(price)) return;
 
-    // מפתח איחוד נקי לפי שם המוצר
     const key = rawProductName.trim();
 
     if (!aggregatedProducts[key]) {
@@ -102,9 +104,8 @@ function processAndRenderProducts(items) {
     }
 
     const currentGroup = aggregatedProducts[key];
-    currentGroup.history.push({ store, date, price });
+    currentGroup.history.push({ rowNumber, store, date, price, rawProductName });
 
-    // עדכון למחיר והתאריך העדכניים ביותר
     if (!currentGroup.latestDate || new Date(date) >= new Date(currentGroup.latestDate)) {
       currentGroup.latestPrice = price;
       currentGroup.latestStore = store;
@@ -150,7 +151,7 @@ function filterProducts() {
   });
 }
 
-// 5. הצגת פופאפ היסטוריית ומחירי מוצר
+// 5. הצגת פופאפ היסטוריית ומחירי מוצר עם כפתורי עריכה/מחיקה
 function showPrices(productName) {
   const product = aggregatedProducts[productName];
   if (!product) return;
@@ -159,19 +160,96 @@ function showPrices(productName) {
   const tbody = document.getElementById("modalPriceTableBody");
   tbody.innerHTML = "";
 
-  // מיון היסטוריית המחירים מהחדש לבישן
   const sortedHistory = [...product.history].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   sortedHistory.forEach(item => {
-    const row = `<tr>
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
       <td>${item.store || '-'}</td>
-      <td style="font-weight:bold; color:#28a745;">₪${item.price.toFixed(2)}</td>
+      <td style="font-weight:bold; color:#28a745;">₪<span class="price-val">${item.price.toFixed(2)}</span></td>
       <td>${item.date || '-'}</td>
-    </tr>`;
-    tbody.innerHTML += row;
+      <td style="white-space: nowrap;">
+        <button onclick="editRow(this, '${item.rowNumber}', '${item.rawProductName}', ${item.price})" style="cursor:pointer; background:none; border:none; font-size:16px;">✏️</button>
+        <button onclick="deleteRow('${item.rowNumber}')" style="cursor:pointer; background:none; border:none; font-size:16px;">🗑️</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
   });
 
   document.getElementById("priceModal").style.display = "flex";
+}
+
+// 6. פונקציית מחיקת שורה
+async function deleteRow(rowNumber) {
+  if (!rowNumber || rowNumber === 'null') {
+    alert("לא ניתן לזהות את מספר השורה למחיקה");
+    return;
+  }
+
+  if (!confirm("האם אתה בטוח שברצונך למחוק רכישה זו?")) return;
+
+  try {
+    const response = await fetch(DELETE_PRODUCT_URL, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ row_number: parseInt(rowNumber) })
+    });
+
+    if (response.ok) {
+      alert("המוצר שנבחר נמחק בהצלחה! ✅");
+      closeModal();
+      loadProducts();
+    } else {
+      alert("שגיאה במחיקת המוצר");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("שגיאה בתקשורת מול השרת");
+  }
+}
+
+// 7. פונקציית עריכת שורה
+async function editRow(btnElement, rowNumber, currentName, currentPrice) {
+  if (!rowNumber || rowNumber === 'null') {
+    alert("לא ניתן לזהות את מספר השורה לעריכה");
+    return;
+  }
+
+  const newName = prompt("הכנס שם מוצר חדש:", currentName);
+  if (newName === null) return; // ביטול
+
+  const newPriceStr = prompt("הכנס מחיר חדש:", currentPrice);
+  if (newPriceStr === null) return; // ביטול
+
+  const newPrice = parseFloat(newPriceStr);
+  if (isNaN(newPrice)) {
+    alert("מחיר לא תקין");
+    return;
+  }
+
+  try {
+    const response = await fetch(UPDATE_PRODUCT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        row_number: parseInt(rowNumber),
+        product_name: newName,
+        price: newPrice
+      })
+    });
+
+    if (response.ok) {
+      alert("המוצר עודכן בהצלחה! ✅");
+      closeModal();
+      loadProducts();
+    } else {
+      alert("שגיאה בעדכון המוצר");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("שגיאה בתקשורת מול השרת");
+  }
 }
 
 function closeModal() {
