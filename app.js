@@ -3,6 +3,7 @@ const GET_PRODUCTS_URL = "https://sish4747.app.n8n.cloud/webhook/get-products";
 const DELETE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/delete-product";
 const UPDATE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/update-product";
 
+let lastUploadedFile = null; // שמירת הקובץ האחרון בזיכרון
 let aggregatedProducts = {};
 let activeCategory = "הכל";
 
