@@ -164,7 +164,7 @@ function renderProductsGrid() {
 
     card.innerHTML = `
       <div style="flex: 1;">
-        <strong style="font-size: 15px; color: #1e293b;">${product.name}</strong>
+        <strong class="product-title" style="font-size: 15px; color: #1e293b;">${product.name}</strong>
         <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
           ${product.latestStore} <span style="color: #94a3b8;">(${product.latestDate})</span>
         </div>
@@ -216,7 +216,7 @@ function showPrices(productName) {
       <td>${item.date || '-'}</td>
       <td><span class="category-tag">${item.category || 'שונות'}</span></td>
       <td style="white-space: nowrap;">
-        <button onclick="openEditForm('${item.rowNumber}', '${item.store}', '${item.rawProductName}', ${item.price}, '${item.date}', '${item.category || 'שונות'}')" style="cursor:pointer; background:none; border:none; font-size:15px;">✏️</button>
+        <button onclick="openEditForm('${item.rowNumber}', '${item.store}', '${item.rawProductName}',${item.price}, '${item.date}', '${item.category || 'שונות'}')" style="cursor:pointer; background:none; border:none; font-size:15px;">✏️</button>
         <button onclick="deleteRow('${item.rowNumber}')" style="cursor:pointer; background:none; border:none; font-size:15px;">🗑️</button>
       </td>
     `;
@@ -353,39 +353,4 @@ function calculateRecommendation(items) {
   if (overlappingProducts.length === 0) {
     recommendationContainer.innerHTML = `
       <p style="color:#64748b;">💡 <strong>השוואת סל:</strong> עדיין לא נרכשו מוצרים זהים בחנויות שונות.<br>
-      כאשר תעלה קבלה עם מוצרים חופפים שנרכשו ביותר מחנות אחת, תופיע כאן השוואת מחיר מדויקת.</p>
-    `;
-    return;
-  }
-
-  const stores = Object.keys(storeComparisonTotals);
-  let cheapestStore = stores[0];
-
-  stores.forEach(store => {
-    if (storeComparisonTotals[store] < storeComparisonTotals[cheapestStore]) {
-      cheapestStore = store;
-    }
-  });
-
-  recommendationContainer.innerHTML = `
-    <h3>💡 המלצת הקנייה למוצרים חופפים (${overlappingProducts.length} מוצרים)</h3>
-    <p>עבור המוצרים שנקנו בכמה חנויות (<strong>${overlappingProducts.join(', ')}</strong>), החנות המשתלמת ביותר היא <strong>${cheapestStore}</strong> בסך ₪${storeComparisonTotals[cheapestStore].toFixed(2)}!</p>
-  `;
-}
-
-// 10. חיפוש וסינון טקסטואלי
-function filterProducts() {
-  const query = document.getElementById("searchInput").value.toLowerCase();
-  const cards = document.querySelectorAll(".product-card");
-
-  cards.forEach(card => {
-    const text = card.innerText.toLowerCase();
-    const matchesQuery = text.includes(query);
-
-    card.style.display = matchesQuery ? "flex" : "none";
-  });
-}
-
-function closeModal() {
-  document.getElementById("priceModal").style.display = "none";
-}
+      כאשר תעלה קבלה עם מוצרים חופפים שנרכשו
