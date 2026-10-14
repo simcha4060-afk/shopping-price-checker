@@ -25,8 +25,8 @@ h1 {
 }
 
 h2 {
-  font-size: 18px;
-  margin: 20px 0 10px;
+  font-size: 16px;
+  margin: 18px 0 8px;
   color: #475569;
 }
 
@@ -67,6 +67,35 @@ h2 {
 .btn-gallery { background-color: #0284c7; }
 .btn:hover { opacity: 0.9; }
 
+/* סרגל מחלקות נגלל בחופשיות */
+.category-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  scrollbar-width: thin;
+}
+
+.cat-btn {
+  white-space: nowrap;
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cat-btn.active, .cat-btn:hover {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
 .status-msg {
   text-align: center;
   margin-top: 10px;
@@ -97,6 +126,16 @@ h2 {
 .product-card:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
+
+.category-tag {
+  display: inline-block;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-top: 4px;
 }
 
 /* Modal */
@@ -134,11 +173,11 @@ h2 {
   width: 100%;
   border-collapse: collapse;
   margin-top: 15px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .price-table th, .price-table td {
-  padding: 10px 8px;
+  padding: 8px 6px;
   text-align: right;
   border-bottom: 1px solid #f1f5f9;
 }
