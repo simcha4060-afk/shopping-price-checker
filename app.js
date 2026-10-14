@@ -4,12 +4,13 @@ const DELETE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/delete-produc
 const UPDATE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/update-product";
 
 let aggregatedProducts = {};
+let activeCategory = "הכל";
 
 document.addEventListener("DOMContentLoaded", () => {
   loadProducts();
 });
 
-// 1. העלאת תמונת קבלה
+// 1. העלאת קבלה
 async function uploadReceipt(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -38,7 +39,7 @@ async function uploadReceipt(event) {
   }
 }
 
-// 2. טעינת נתונים מ-n8n
+// 2. טעינת נתונים
 async function loadProducts() {
   const productsList = document.getElementById("productsList");
   if (!productsList) return;
@@ -72,11 +73,8 @@ async function loadProducts() {
   }
 }
 
-// 3. איגוד מוצרים זהים והצגתם ברשימה
+// 3. איגוד מוצרים
 function processAndRenderProducts(items) {
-  const productsList = document.getElementById("productsList");
-  productsList.innerHTML = "";
-
   aggregatedProducts = {};
 
   items.forEach(item => {
@@ -87,6 +85,7 @@ function processAndRenderProducts(items) {
     const date = data["תאריך"] || data.date || "";
     const rawProductName = data["שם המוצר"] || data.product_name || "";
     const price = parseFloat(data["מחיר המוצר"] || data["מחיר"] || data.price);
+    const category = data["מחלקה"] || data.category || "שונות";
 
     if (!rawProductName || rawProductName === "empty" || isNaN(price)) return;
 
@@ -98,53 +97,88 @@ function processAndRenderProducts(items) {
         latestPrice: price,
         latestStore: store,
         latestDate: date,
+        category: category,
         history: []
       };
     }
 
     const currentGroup = aggregatedProducts[key];
-    currentGroup.history.push({ rowNumber, store, date, price, rawProductName });
+    currentGroup.history.push({ rowNumber, store, date, price, rawProductName, category });
 
     if (!currentGroup.latestDate || new Date(date) >= new Date(currentGroup.latestDate)) {
       currentGroup.latestPrice = price;
       currentGroup.latestStore = store;
       currentGroup.latestDate = date;
+      currentGroup.category = category;
     }
   });
 
-  const keys = Object.keys(aggregatedProducts);
+  renderProductsGrid();
+}
 
-  if (keys.length === 0) {
-    productsList.innerHTML = "<p style='text-align:center; color:#888;'>לא נמצאו מוצרים תקינים</p>";
-    return;
-  }
+// 4. רינדור המוצרים על המסך בהתאם למחלקה שנבחרה
+function renderProductsGrid() {
+  const productsList = document.getElementById("productsList");
+  productsList.innerHTML = "";
+
+  const keys = Object.keys(aggregatedProducts);
+  let count = 0;
 
   keys.forEach(key => {
     const product = aggregatedProducts[key];
+
+    // סינון לפי מחלקה
+    if (activeCategory !== "הכל" && product.category !== activeCategory) {
+      return;
+    }
+
+    count++;
+
     const card = document.createElement("div");
     card.className = "product-card";
+    card.setAttribute("data-category", product.category);
     card.onclick = () => showPrices(product.name);
 
     card.innerHTML = `
       <div style="flex: 1;">
         <strong style="font-size: 15px; color: #1e293b;">${product.name}</strong>
-        <div style="font-size: 12px; color: #64748b; margin-top: 3px;">
+        <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
           ${product.latestStore} <span style="color: #94a3b8;">(${product.latestDate})</span>
         </div>
+        <span class="category-tag">${product.category}</span>
       </div>
       <div style="font-weight: 700; color: #16a34a; font-size: 16px;">₪${product.latestPrice.toFixed(2)}</div>
     `;
 
     productsList.appendChild(card);
   });
+
+  if (count === 0) {
+    productsList.innerHTML = "<p style='text-align:center; color:#888; padding:20px;'>אין מוצרים במחלקה זו</p>";
+  }
+
+  filterProducts(); // הפעלת חיפוש טקסטואלי אם מוקלד
 }
 
-// 4. הצגת פופאפ היסטוריית מחירים
+// בחירת מחלקה בסרגל
+function selectCategory(category) {
+  activeCategory = category;
+
+  // עדכון עיצוב כפתור פעיל
+  const buttons = document.querySelectorAll(".cat-btn");
+  buttons.forEach(btn => {
+    btn.classList.toggle("active", btn.innerText.includes(category) || (category === "הכל" && btn.innerText.includes("הכל")));
+  });
+
+  renderProductsGrid();
+}
+
+// 5. הצגת פופאפ היסטוריית מחירים
 function showPrices(productName) {
   const product = aggregatedProducts[productName];
   if (!product) return;
 
-  cancelEdit(); // סגירת טופס העריכה במידה והיה פתוח
+  cancelEdit();
 
   document.getElementById("modalProductName").innerText = product.name;
   const tbody = document.getElementById("modalPriceTableBody");
@@ -159,9 +193,10 @@ function showPrices(productName) {
       <td>${item.store || '-'}</td>
       <td style="font-weight:bold; color:#16a34a;">₪${item.price.toFixed(2)}</td>
       <td>${item.date || '-'}</td>
+      <td><span class="category-tag">${item.category || 'שונות'}</span></td>
       <td style="white-space: nowrap;">
-        <button onclick="openEditForm('${item.rowNumber}', '${item.store}', '${item.rawProductName}', ${item.price}, '${item.date}')" style="cursor:pointer; background:none; border:none; font-size:16px;">✏️</button>
-        <button onclick="deleteRow('${item.rowNumber}')" style="cursor:pointer; background:none; border:none; font-size:16px;">🗑️</button>
+        <button onclick="openEditForm('${item.rowNumber}', '${item.store}', '${item.rawProductName}', ${item.price}, '${item.date}', '${item.category || 'שונות'}')" style="cursor:pointer; background:none; border:none; font-size:15px;">✏️</button>
+        <button onclick="deleteRow('${item.rowNumber}')" style="cursor:pointer; background:none; border:none; font-size:15px;">🗑️</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -170,13 +205,16 @@ function showPrices(productName) {
   document.getElementById("priceModal").style.display = "flex";
 }
 
-// 5. פתיחת טופס עריכה מרוכז
-function openEditForm(rowNumber, store, productName, price, date) {
+// פתיחת טופס עריכה ושינוי מחלקה
+function openEditForm(rowNumber, store, productName, price, date, category) {
   document.getElementById("editRowNumber").value = rowNumber;
   document.getElementById("editStore").value = store;
   document.getElementById("editProductName").value = productName;
   document.getElementById("editPrice").value = price;
   document.getElementById("editDate").value = date;
+
+  const catSelect = document.getElementById("editCategory");
+  if (catSelect) catSelect.value = category || "שונות";
 
   document.getElementById("editFormContainer").style.display = "block";
 }
@@ -185,13 +223,14 @@ function cancelEdit() {
   document.getElementById("editFormContainer").style.display = "none";
 }
 
-// 6. שמירת עריכה ל-n8n
+// שמירת עריכה כולל העברת מחלקה
 async function saveEdit() {
   const rowNumber = document.getElementById("editRowNumber").value;
   const store = document.getElementById("editStore").value;
   const productName = document.getElementById("editProductName").value;
   const price = parseFloat(document.getElementById("editPrice").value);
   const date = document.getElementById("editDate").value;
+  const category = document.getElementById("editCategory").value;
 
   if (!rowNumber || rowNumber === 'null') {
     alert("שגיאה בזיהוי שורת המוצר");
@@ -207,12 +246,13 @@ async function saveEdit() {
         store: store,
         product_name: productName,
         price: price,
-        date: date
+        date: date,
+        category: category
       })
     });
 
     if (response.ok) {
-      alert("הנתונים עודכנו בהצלחה! ✅");
+      alert("הנתונים והמחלקה עודכנו בהצלחה! ✅");
       closeModal();
       loadProducts();
     } else {
@@ -224,7 +264,7 @@ async function saveEdit() {
   }
 }
 
-// 7. מחיקת שורה
+// מחיקת שורה
 async function deleteRow(rowNumber) {
   if (!rowNumber || rowNumber === 'null') {
     alert("לא ניתן לזהות את מספר השורה למחיקה");
@@ -253,7 +293,7 @@ async function deleteRow(rowNumber) {
   }
 }
 
-// 8. אלגוריתם המלצה חכם למוצרים חופפים בלבד
+// חישוב המלצה למוצרים חופפים
 function calculateRecommendation(items) {
   const recommendationContainer = document.getElementById("recommendationBox");
   if (!recommendationContainer) return;
@@ -312,14 +352,16 @@ function calculateRecommendation(items) {
   `;
 }
 
-// 9. חיפוש וסינון
+// חיפוש טקסטואלי
 function filterProducts() {
   const query = document.getElementById("searchInput").value.toLowerCase();
   const cards = document.querySelectorAll(".product-card");
 
   cards.forEach(card => {
     const text = card.innerText.toLowerCase();
-    card.style.display = text.includes(query) ? "flex" : "none";
+    const matchesQuery = text.includes(query);
+
+    card.style.display = matchesQuery ? "flex" : "none";
   });
 }
 
