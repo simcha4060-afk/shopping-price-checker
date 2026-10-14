@@ -3,21 +3,25 @@ const GET_PRODUCTS_URL = "https://sish4747.app.n8n.cloud/webhook/get-products";
 const DELETE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/delete-product";
 const UPDATE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/update-product";
 
-let lastUploadedFile = null; // שמירת הקובץ האחרון בזיכרון
 let aggregatedProducts = {};
 let activeCategory = "הכל";
+let lastUploadedFile = null; // שמירת תמונת הקבלה בזיכרון לניסיון חוזר
 
 document.addEventListener("DOMContentLoaded", () => {
   loadProducts();
 });
 
-// 1. העלאת קבלה
+// 1. העלאת תמונת קבלה ל-n8n
 async function uploadReceipt(event) {
-  const file = event.target.files[0];
+  // בדיקה אם האירוע הגיע מפרמטר עטיפה (event) או ישירות מקובץ שנשמר (File)
+  const file = event && event.target ? event.target.files[0] : event;
   if (!file) return;
 
+  // שמירת הקובץ בזיכרון במידה ונצטרך להריץ "נסה שוב"
+  lastUploadedFile = file;
+
   const statusElement = document.getElementById("uploadStatus");
-  statusElement.innerText = "מעלה ומפענח קבלה...";
+  statusElement.innerHTML = "<span>מעלה ומפענח קבלה... ⏳</span>";
 
   const formData = new FormData();
   formData.append("file", file);
@@ -29,18 +33,40 @@ async function uploadReceipt(event) {
     });
 
     if (response.ok) {
-      statusElement.innerText = "הקבלה פוענחה ונשמרה בהצלחה! ✅";
+      statusElement.innerHTML = "<span style='color: #16a34a;'>הקבלה פוענחה ונשמרה בהצלחה! ✅</span>";
       setTimeout(loadProducts, 1500);
     } else {
-      statusElement.innerText = "שגיאה בפענוח הקבלה ❌";
+      showRetryError("שגיאה בפענוח הקבלה ❌");
     }
   } catch (err) {
     console.error(err);
-    statusElement.innerText = "שגיאה בתקשורת מול השרת";
+    showRetryError("שגיאה בתקשורת מול השרת ❌");
   }
 }
 
-// 2. טעינת נתונים
+// הצגת הודעת שגיאה עם כפתור "נסה שוב"
+function showRetryError(message) {
+  const statusElement = document.getElementById("uploadStatus");
+  statusElement.innerHTML = `
+    <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 5px;">
+      <span style="color: #dc3545; font-weight: bold;">${message}</span>
+      <button onclick="retryUploadReceipt()" style="padding: 6px 12px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold;">
+        🔄 נסה שוב
+      </button>
+    </div>
+  `;
+}
+
+// ניסיון חוזר לשליחת הקובץ השמור ללא צורך לבחור אותו מחדש
+function retryUploadReceipt() {
+  if (lastUploadedFile) {
+    uploadReceipt(lastUploadedFile);
+  } else {
+    alert("לא נמצאה קבלה קודמת לשליחה חוזרת");
+  }
+}
+
+// 2. טעינת נתונים מ-n8n
 async function loadProducts() {
   const productsList = document.getElementById("productsList");
   if (!productsList) return;
@@ -74,7 +100,7 @@ async function loadProducts() {
   }
 }
 
-// 3. איגוד מוצרים
+// 3. איגוד מוצרים זהים
 function processAndRenderProducts(items) {
   aggregatedProducts = {};
 
@@ -117,7 +143,7 @@ function processAndRenderProducts(items) {
   renderProductsGrid();
 }
 
-// 4. רינדור המוצרים על המסך בהתאם למחלקה שנבחרה
+// 4. הצגת מוצרים לפי מחלקה
 function renderProductsGrid() {
   const productsList = document.getElementById("productsList");
   productsList.innerHTML = "";
@@ -128,7 +154,6 @@ function renderProductsGrid() {
   keys.forEach(key => {
     const product = aggregatedProducts[key];
 
-    // סינון לפי מחלקה
     if (activeCategory !== "הכל" && product.category !== activeCategory) {
       return;
     }
@@ -158,14 +183,12 @@ function renderProductsGrid() {
     productsList.innerHTML = "<p style='text-align:center; color:#888; padding:20px;'>אין מוצרים במחלקה זו</p>";
   }
 
-  filterProducts(); // הפעלת חיפוש טקסטואלי אם מוקלד
+  filterProducts();
 }
 
-// בחירת מחלקה בסרגל
 function selectCategory(category) {
   activeCategory = category;
 
-  // עדכון עיצוב כפתור פעיל
   const buttons = document.querySelectorAll(".cat-btn");
   buttons.forEach(btn => {
     btn.classList.toggle("active", btn.innerText.includes(category) || (category === "הכל" && btn.innerText.includes("הכל")));
@@ -206,7 +229,7 @@ function showPrices(productName) {
   document.getElementById("priceModal").style.display = "flex";
 }
 
-// פתיחת טופס עריכה ושינוי מחלקה
+// 6. פתיחת טופס עריכה
 function openEditForm(rowNumber, store, productName, price, date, category) {
   document.getElementById("editRowNumber").value = rowNumber;
   document.getElementById("editStore").value = store;
@@ -224,7 +247,7 @@ function cancelEdit() {
   document.getElementById("editFormContainer").style.display = "none";
 }
 
-// שמירת עריכה כולל העברת מחלקה
+// 7. שמירת עריכה ושליחה ל-n8n
 async function saveEdit() {
   const rowNumber = document.getElementById("editRowNumber").value;
   const store = document.getElementById("editStore").value;
@@ -265,7 +288,7 @@ async function saveEdit() {
   }
 }
 
-// מחיקת שורה
+// 8. מחיקת שורה
 async function deleteRow(rowNumber) {
   if (!rowNumber || rowNumber === 'null') {
     alert("לא ניתן לזהות את מספר השורה למחיקה");
@@ -294,7 +317,7 @@ async function deleteRow(rowNumber) {
   }
 }
 
-// חישוב המלצה למוצרים חופפים
+// 9. המלצת סל חכמה למוצרים חופפים בלבד
 function calculateRecommendation(items) {
   const recommendationContainer = document.getElementById("recommendationBox");
   if (!recommendationContainer) return;
@@ -353,7 +376,7 @@ function calculateRecommendation(items) {
   `;
 }
 
-// חיפוש טקסטואלי
+// 10. חיפוש וסינון טקסטואלי
 function filterProducts() {
   const query = document.getElementById("searchInput").value.toLowerCase();
   const cards = document.querySelectorAll(".product-card");
