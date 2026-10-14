@@ -67,7 +67,7 @@ h2 {
 .btn-gallery { background-color: #0284c7; }
 .btn:hover { opacity: 0.9; }
 
-/* סרגל מחלקות נגלל בחופשיות */
+/* סרגל מחלקות נגלל */
 .category-bar {
   display: flex;
   gap: 8px;
