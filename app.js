@@ -4,96 +4,306 @@ const GET_PRODUCTS_URL = "https://sish4747.app.n8n.cloud/webhook/get-products";
 const DELETE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/delete-product";
 const UPDATE_PRODUCT_URL = "https://sish4747.app.n8n.cloud/webhook/update-product";
 
-// רשימת מחלקות אחידה לאתר ול-n8n.
+// ======================================
+// הגדרות כלליות
+// ======================================
+
+const LOAD_TIMEOUT = 20000;
+const ACTION_TIMEOUT = 30000;
+const UPLOAD_TIMEOUT = 120000;
+
+let aggregatedProducts = {};
+let activeCategory = "הכל";
+let lastUploadedFile = null;
+let productsLoadRequestId = 0;
+let currentSearch = "";
+
+// ======================================
+// מחלקות חדשות - תואם לפרומפט n8n
+// ======================================
+
 const CATEGORIES = [
-  ["הכל", "🛒"], ["פירות וירקות", "🍏"], ["חלב וביצים", "🥛"],
-  ["לחמים ומאפים", "🍞"], ["בשר ועופות", "🥩"], ["דגים", "🐟"],
-  ["רטבים וממרחים", "🥫"], ["שימורים", "🥫"],
-  ["אורז, פסטה וקטניות", "🌾"], ["אפייה ובישול", "🧂"],
-  ["חטיפים וממתקים", "🍫"], ["משקאות", "🥤"], ["קפואים", "🧊"],
-  ["סלטים ומקרר", "🥗"], ["חומרי ניקוי", "🧹"],
-  ["טואלטיקה והיגיינה", "🧴"], ["חד פעמי", "🍽️"], ["שונות", "📦"]
+  ["הכל", "🛒"],
+  ["פירות וירקות", "🍏"],
+  ["חלב וביצים", "🥛"],
+  ["לחמים ומאפים", "🍞"],
+  ["בשר ועופות", "🥩"],
+  ["דגים", "🐟"],
+  ["רטבים וממרחים", "🥫"],
+  ["שימורים", "🥫"],
+  ["אורז, פסטה וקטניות", "🌾"],
+  ["אפייה ובישול", "🧂"],
+  ["חטיפים וממתקים", "🍫"],
+  ["משקאות", "🥤"],
+  ["קפואים", "🧊"],
+  ["סלטים ומקרר", "🥗"],
+  ["חומרי ניקוי", "🧹"],
+  ["טואלטיקה והיגיינה", "🧴"],
+  ["חד פעמי", "🍽️"],
+  ["שונות", "📦"]
 ];
 
-// סדר הכללים חשוב: כלל ממוקד לפני כלל רחב.
+const VALID_CATEGORIES = new Set(
+  CATEGORIES.map(([name]) => name)
+);
+
+// ======================================
+// כללי סיווג למוצרים ישנים בלבד
+// ======================================
+
+// כללים ממוקדים מופיעים לפני כללים כלליים.
+// סיווג AI תקין לא יידרס.
+
 const CATEGORY_RULES = [
-  ["רטבים וממרחים", /קטשופ|מיונז|חרדל|טחינה|רוטב|ממרח|פסטו|חומוס למריחה|סחוג|אריסה/],
-  ["שימורים", /רסק עגבניות|עגבניות מרוסקות|שימור|טונה|תירס בקופס|אפונ[הה] בשימור|מלפפון חמוץ|זיתים|חמוצים/],
-  ["חלב וביצים", /חלב|גבינ|יוגורט|קוטג|קוטג׳|קוטג'|שמנת|ביצים|ביצה|מעדן חלב|חמאה|לבנה/],
-  ["לחמים ומאפים", /לחם|חלה|חלות|פיתה|פיתות|לחמני|בגט|טורטיה|קרואסון|בורקס|מאפה/],
-  ["דגים", /דגי|דג |סלמון|אמנון|מושט|דניס|פילה דג/],
-  ["בשר ועופות", /עוף|עופות|פרגית|שניצל|חזה עוף|בקר|בשר|הודו|נקניק|קבב|המבורגר/],
-  ["פירות וירקות", /תפוח|בננה|מלפפון טרי|עגבני[הה] טרי|עגבניות טריות|גזר|בצל|תפוח אדמה|בטטה|קישוא|פלפל|חסה|אבוקדו|אגס|תפוז|לימון|ענבים|תותים|פטרוזיליה|כוסברה/],
-  ["אורז, פסטה וקטניות", /אורז|פסטה|ספגטי|מקרוני|קוסקוס|בורגול|קינואה|עדשים|שעועית יבשה|חומוס יבש|פתיתים|אטריות/],
-  ["אפייה ובישול", /קמח|סוכר|שמן|מלח|פלפל שחור|פפריקה|כורכום|אבקת אפי[יה]|תבלין|קינמון|קורנפלור|שמרים|וניל/],
-  ["חטיפים וממתקים", /ביסקוויט|שוקולד|חטיף|וופל|עוגי[הה]|סוכריות|מסטיק|במבה|ביסלי|צ'יפס|צ׳יפס/],
-  ["משקאות", /מים מינרל|בקבוק מים|מיץ|קולה|ספרייט|סודה|משקה|שתיה|שתייה|נקטר/],
-  ["קפואים", /קפוא|גלידה|קרטיב|פיצה קפואה/],
-  ["חומרי ניקוי", /אקונומיקה|נוזל כלים|סבון כלים|חומר ניקוי|מרכך כביסה|אבקת כביסה|נוזל כביסה|מסיר שומנים|סנו/],
+  ["שימורים", /רסק עגבניות|טונה בשימורים|טונה בקופס|תירס בשימורים|תירס בקופס|מלפפון חמוץ|זיתים בקופס|שימורים|עגבניות מרוסקות/],
+
+  ["סלטים ומקרר", /טחינה מוכנה|סלט טחינה|חומוס מוכן|סלט חומוס|סלט חצילים|מטבוחה|סלט כרוב|סלמון מעושן|סלטי צבר|סלטי אחלה|נקניקיות מוכנות/],
+
+  ["רטבים וממרחים", /קטשופ|מיונז|חרדל|טחינה גולמית|טחינה|רוטב|ממרח|פסטו|סחוג|אריסה/],
+
+  ["חלב וביצים", /חלב|גבינ|יוגורט|קוטג|שמנת|חמאה|ביצה|ביצים|מעדן חלב|לבנה/],
+
+  ["לחמים ומאפים", /לחם|חלה|חלות|פיתה|פיתות|לחמני|בגט|טורטיה|קרואסון|בורקס|מאפה טרי/],
+
+  ["דגים", /דגים|דג טרי|דג קפוא|סלמון|אמנון|דניס|מושט|פילה דג|קרפיון|פורל/],
+
+  ["בשר ועופות", /בשר|עוף|עופות|הודו|פרגית|חזה עוף|כרעיים|שניצל עוף|קבב|המבורגר|בקר|נקניק/],
+
+  ["קפואים", /קפוא|גלידה|קרטיב|איגלו סטיק|פיצה קפואה|שניצל תירס/],
+
+  ["פירות וירקות", /תפוח|בננה|מלפפון|עגבניה|עגבנייה|עגבניות|גזר|בצל|תפוח אדמה|בטטה|קישוא|כרוב|חסה|אבוקדו|אגס|תפוז|לימון|ענבים|פומלה|פטרוזיליה|כוסברה|שום טרי|פלפל ירוק|פלפל אדום/],
+
+  ["אורז, פסטה וקטניות", /אורז|פסטה|ספגטי|מקרוני|קוסקוס|בורגול|קינואה|עדשים|שעועית יבשה|פתיתים|אטריות|גריסים/],
+
+  ["אפייה ובישול", /קמח|סוכר|שמן|מלח|פלפל שחור|פפריקה|כורכום|אבקת אפייה|אבקת אפיה|תבלין|קינמון|קורנפלור|שמרים|וניל/],
+
+  ["חטיפים וממתקים", /ביסקוויט|שוקולד|חטיף|וופל|עוגיות|סוכריות|מסטיק|במבה|ביסלי|צ'יפס|צ׳יפס/],
+
+  ["משקאות", /מים מינרל|בקבוק מים|מיץ|קולה|ספרייט|סודה|משקה|שתיה|שתייה|נקטר|קפה|תה שחור|תה ירוק|נס קפה/],
+
+  ["חומרי ניקוי", /אקונומיקה|נוזל כלים|סבון כלים|חומר ניקוי|מרכך כביסה|אבקת כביסה|נוזל כביסה|מסיר שומנים|טבליות למדיח|מטליות ניקוי/],
+
   ["טואלטיקה והיגיינה", /שמפו|מרכך שיער|דאודורנט|משחת שיניים|מברשת שיניים|סבון גוף|נייר טואלט|מגבונים|טיטולים|חיתולים/],
-  ["חד פעמי", /חד פעמי|כוסות|צלחות חד|סכו[ם״']|מפיות|ניילון נצמד|שקיות אשפה|תבניות אלומיניום/],
-  ["סלטים ומקרר", /סלט חצילים|סלט כרוב|סלט מטבוחה|מטבוחה|חומוס מוכן/]
+
+  ["חד פעמי", /חד פעמי|כוסות|צלחות חד|סכו"ם|סכום חד|מפיות|ניילון נצמד|שקיות אשפה|תבניות אלומיניום|נייר אפייה|קשיות/]
 ];
+
+// ======================================
+// עזרי נתונים
+// ======================================
+
+function getItemData(item) {
+  if (!item || typeof item !== "object") return {};
+  return item.json && typeof item.json === "object"
+    ? item.json
+    : item;
+}
+
+function parsePrice(value) {
+  if (typeof value === "number") return value;
+
+  const cleaned = String(value ?? "")
+    .replace(/[₪,\s]/g, "");
+
+  return Number.parseFloat(cleaned);
+}
 
 function normalizeCategory(productName, oldCategory) {
-  const name = String(productName || "").trim().toLowerCase();
+  const name = String(productName || "")
+    .trim()
+    .toLowerCase();
+
   const existing = String(oldCategory || "").trim();
 
-  for (const [category, pattern] of CATEGORY_RULES) {
-    if (pattern.test(name)) return category;
+  // מחלקה תקינה שקיבלנו מה-AI מקבלת עדיפות.
+  if (
+    VALID_CATEGORIES.has(existing) &&
+    existing !== "הכל" &&
+    existing !== "שונות"
+  ) {
+    return existing;
   }
 
-  // מחלקות חדשות תקינות שמוזנות ידנית נשארות במקומן.
-  if (CATEGORIES.some(([name]) => name === existing && name !== "הכל")) {
-    return existing;
+  // מחלקה ישנה או לא מזוהה - סיווג לפי שם המוצר.
+  for (const [category, pattern] of CATEGORY_RULES) {
+    if (pattern.test(name)) {
+      return category;
+    }
   }
 
   return "שונות";
 }
 
+function getCategoryEmoji(category) {
+  const entry = CATEGORIES.find(
+    ([name]) => name === category
+  );
+
+  return entry ? entry[1] : "📦";
+}
+
+function safeText(value) {
+  return String(value ?? "");
+}
+
+function makeElement(tag, text, className) {
+  const element = document.createElement(tag);
+
+  if (text !== undefined) {
+    element.textContent = safeText(text);
+  }
+
+  if (className) {
+    element.className = className;
+  }
+
+  return element;
+}
+
+function formatPrice(price) {
+  return `₪${Number(price).toFixed(2)}`;
+}
+
+// ======================================
+// התחלת האתר
+// ======================================
+
+document.addEventListener("DOMContentLoaded", () => {
+  setupCategories();
+  setupSearch();
+  loadProducts();
+});
+
+// ======================================
+// יצירת כפתורי מחלקות
+// ======================================
+
 function setupCategories() {
-  const bar = document.getElementById("categoryBar");
+  let bar = document.getElementById("categoryBar");
+
+  // תמיכה גם במבנה HTML ישן.
+  if (!bar) {
+    const oldButton = document.querySelector(".cat-btn");
+
+    if (oldButton && oldButton.parentElement) {
+      bar = oldButton.parentElement;
+    }
+  }
 
   if (bar) {
     bar.replaceChildren();
 
     for (const [category, emoji] of CATEGORIES) {
       const button = document.createElement("button");
+
       button.type = "button";
-      button.className = "cat-btn" + (category === activeCategory ? " active" : "");
-      button.textContent = `${category} ${emoji}`;
-      button.onclick = () => selectCategory(category);
+      button.className = "cat-btn";
+      button.textContent = `${emoji} ${category}`;
+
+      button.dataset.category = category;
+
+      button.onclick = () => {
+        selectCategory(category);
+      };
+
+      if (category === activeCategory) {
+        button.classList.add("active");
+      }
+
       bar.appendChild(button);
     }
   }
 
+  // עדכון אפשרויות המחלקה בעריכת מוצר.
   const editCategory = document.getElementById("editCategory");
 
   if (editCategory) {
     editCategory.replaceChildren();
 
-    for (const [category, emoji] of CATEGORIES.filter(([category]) => category !== "הכל")) {
+    for (const [category, emoji] of CATEGORIES) {
+      if (category === "הכל") continue;
+
       const option = document.createElement("option");
+
       option.value = category;
-      option.textContent = `${category} ${emoji}`;
+      option.textContent = `${emoji} ${category}`;
+
       editCategory.appendChild(option);
     }
   }
 }
 
-let aggregatedProducts = {};
-let activeCategory = "הכל";
-let lastUploadedFile = null;
-let productsLoadRequestId = 0;
+function selectCategory(category) {
+  activeCategory = category;
 
-document.addEventListener("DOMContentLoaded", () => {
-  setupCategories();
-  loadProducts();
-});
+  document.querySelectorAll(".cat-btn").forEach(button => {
+    button.classList.toggle(
+      "active",
+      button.dataset.category === category
+    );
+  });
 
-// 1. העלאת תמונת קבלה
+  renderProductsGrid();
+}
+
+// ======================================
+// חיפוש מוצרים
+// ======================================
+
+function setupSearch() {
+  const input =
+    document.getElementById("searchInput") ||
+    document.querySelector('input[type="search"]');
+
+  if (!input) return;
+
+  input.addEventListener("input", () => {
+    currentSearch = input.value.trim().toLowerCase();
+    filterProducts();
+  });
+}
+
+function filterProducts() {
+  const searchInput =
+    document.getElementById("searchInput") ||
+    document.querySelector('input[type="search"]');
+
+  if (searchInput) {
+    currentSearch = searchInput.value.trim().toLowerCase();
+  }
+
+  const cards = document.querySelectorAll(
+    "#productsList .product-card"
+  );
+
+  let visible = 0;
+
+  cards.forEach(card => {
+    const match = card.textContent
+      .toLowerCase()
+      .includes(currentSearch);
+
+    card.style.display = match ? "" : "none";
+
+    if (match) visible++;
+  });
+
+  const emptySearch = document.getElementById("emptySearchMessage");
+
+  if (emptySearch) {
+    emptySearch.style.display =
+      cards.length > 0 && visible === 0
+        ? "block"
+        : "none";
+  }
+}
+
+// ======================================
+// העלאת קבלה ל-n8n
+// ======================================
+
 async function uploadReceipt(event) {
-  const file = (event && event.target && event.target.files)
+  const file = event?.target?.files
     ? event.target.files[0]
     : event;
 
@@ -102,63 +312,108 @@ async function uploadReceipt(event) {
   lastUploadedFile = file;
 
   const statusElement = document.getElementById("uploadStatus");
-  statusElement.innerHTML = "<span>מעלה ומפענח קבלה... ⏳</span>";
+
+  if (statusElement) {
+    statusElement.textContent = "מעלה ומפענח קבלה... ⏳";
+  }
 
   const formData = new FormData();
-  formData.append("file", file, file.name || "receipt.jpg");
+
+  formData.append(
+    "file",
+    file,
+    file.name || "receipt.jpg"
+  );
 
   try {
     const response = await fetch(UPLOAD_URL, {
       method: "POST",
       body: formData,
       mode: "cors",
-      signal: AbortSignal.timeout(120000)
+      signal: AbortSignal.timeout(UPLOAD_TIMEOUT)
     });
 
-    if (response.ok) {
-      statusElement.innerHTML = "<span style='color: #16a34a;'>הקבלה פוענחה ונשמרה בהצלחה! ✅</span>";
-      setTimeout(loadProducts, 1500);
-    } else {
-      showRetryError("שגיאה בפענוח הקבלה ❌");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
 
+    if (statusElement) {
+      statusElement.textContent =
+        "הקבלה פוענחה ונשמרה בהצלחה! ✅";
+      statusElement.style.color = "#16a34a";
+    }
+
+    setTimeout(() => {
+      loadProducts();
+    }, 1500);
+
   } catch (err) {
-    console.error("Fetch Error:", err);
-    showRetryError("שגיאה בתקשורת מול השרת ❌");
+    console.error("Upload error:", err);
+
+    const message = err.name === "TimeoutError"
+      ? "תם זמן ההמתנה לפענוח. בדוק אם הקבלה נשמרה לפני ניסיון חוזר."
+      : "שגיאה בהעלאת הקבלה";
+
+    showRetryError(message);
   }
 }
 
 function showRetryError(message) {
   const statusElement = document.getElementById("uploadStatus");
 
-  statusElement.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 5px;">
-      <span style="color: #dc3545; font-weight: bold;">${message}</span>
-      <button onclick="retryUploadReceipt()" style="padding: 6px 12px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold;">
-        🔄 נסה שוב
-      </button>
-    </div>
+  if (!statusElement) return;
+
+  statusElement.replaceChildren();
+
+  const text = makeElement("span", message);
+  text.style.color = "#dc3545";
+
+  const button = makeElement("button", "🔄 נסה שוב");
+  button.type = "button";
+
+  button.style.cssText = `
+    padding:8px 12px;
+    background:#2563eb;
+    color:white;
+    border:0;
+    border-radius:8px;
+    cursor:pointer;
+    margin:8px;
   `;
+
+  button.onclick = retryUploadReceipt;
+
+  statusElement.append(text, button);
 }
 
 function retryUploadReceipt() {
   if (lastUploadedFile) {
-    uploadReceipt(lastUploadedFile);
+    if (confirm("האם לשלוח שוב את הקבלה? ודא שלא נשמרה כבר כדי למנוע כפילויות.")) {
+      uploadReceipt(lastUploadedFile);
+    }
   } else {
-    alert("לא נמצאה קבלה קודמת לשליחה חוזרת");
+    alert("לא נמצאה קבלה לשליחה חוזרת");
   }
 }
 
-// 2. טעינת נתונים מ-n8n
+// ======================================
+// טעינת מוצרים מ-n8n
+// ======================================
+
 async function loadProducts() {
   const productsList = document.getElementById("productsList");
-  const recommendationBox = document.getElementById("recommendationBox");
+
+  const recommendationBox =
+    document.getElementById("recommendationBox");
 
   if (!productsList) return;
 
   const requestId = ++productsLoadRequestId;
 
-  productsList.innerHTML = "<p style='text-align:center;color:#666;'>טוען נתונים...</p>";
+  productsList.innerHTML = "";
+  productsList.appendChild(
+    makeElement("p", "טוען נתונים... ⏳")
+  );
 
   if (recommendationBox) {
     recommendationBox.textContent = "טוען נתוני המלצה...";
@@ -166,12 +421,12 @@ async function loadProducts() {
 
   try {
     const response = await fetch(GET_PRODUCTS_URL, {
-      signal: AbortSignal.timeout(20000),
-      cache: "no-store"
+      cache: "no-store",
+      signal: AbortSignal.timeout(LOAD_TIMEOUT)
     });
 
     if (!response.ok) {
-      throw new Error(`שגיאת HTTP ${response.status} בטעינת המוצרים`);
+      throw new Error(`HTTP ${response.status}`);
     }
 
     const rawData = await response.json();
@@ -181,7 +436,10 @@ async function loadProducts() {
     let items = [];
 
     if (Array.isArray(rawData)) {
-      if (rawData.length > 0 && Array.isArray(rawData[0]?.data)) {
+      if (
+        rawData.length > 0 &&
+        Array.isArray(rawData[0]?.data)
+      ) {
         items = rawData[0].data;
       } else {
         items = rawData;
@@ -197,7 +455,7 @@ async function loadProducts() {
       }
 
     } else {
-      throw new Error("מבנה נתונים לא תקין מהשרת");
+      throw new Error("מבנה נתונים לא תקין");
     }
 
     processAndRenderProducts(items);
@@ -206,148 +464,225 @@ async function loadProducts() {
   } catch (err) {
     if (requestId !== productsLoadRequestId) return;
 
-    console.error("שגיאה בטעינת מוצרים:", err);
+    console.error("Products loading error:", err);
 
-    const message = err.name === "TimeoutError" || err.name === "AbortError"
-      ? "השרת לא ענה תוך 20 שניות. בדוק את ה-Workflow ב-n8n."
-      : `טעינת הנתונים נכשלה: ${err.message || "שגיאת תקשורת"}`;
+    const message =
+      err.name === "TimeoutError" ||
+      err.name === "AbortError"
+        ? "שרת n8n לא השיב בתוך 20 שניות"
+        : `שגיאה בטעינת מוצרים: ${err.message}`;
 
-    productsList.innerHTML = "";
+    productsList.replaceChildren();
 
-    const p = document.createElement("p");
-    p.style.cssText = "text-align:center;color:#dc3545;";
-    p.textContent = message;
-    productsList.appendChild(p);
+    const error = makeElement("p", message);
+    error.style.color = "#dc3545";
 
-    const retry = document.createElement("button");
+    const retry = makeElement(
+      "button",
+      "🔄 נסה לטעון שוב"
+    );
+
     retry.type = "button";
-    retry.textContent = "🔄 נסה לטעון שוב";
-    retry.style.cssText = "display:block;margin:12px auto;padding:10px;border:0;border-radius:8px;background:#2563eb;color:white;cursor:pointer;";
+    retry.style.cssText = `
+      background:#2563eb;
+      color:white;
+      border:0;
+      padding:10px 18px;
+      border-radius:8px;
+      cursor:pointer;
+    `;
+
     retry.onclick = loadProducts;
-    productsList.appendChild(retry);
+
+    productsList.append(error, retry);
 
     if (recommendationBox) {
-      recommendationBox.textContent = "לא ניתן לחשב המלצת סל כי נתוני המוצרים לא נטענו.";
+      recommendationBox.textContent =
+        "לא ניתן לחשב המלצות - נתוני המוצרים לא נטענו.";
     }
   }
 }
 
-// 3. איגוד מוצרים זהים
+// ======================================
+// איגוד מוצרים זהים
+// ======================================
+
 function processAndRenderProducts(items) {
   aggregatedProducts = {};
 
   items.forEach(item => {
-    const data = item && item.json ? item.json : (item || {});
+    const data = getItemData(item);
 
-    const rowNumber = data.row_number ?? item?.row_number ?? null;
+    const rowNumber = data.row_number ?? null;
+
     const store = data["שם החנות"] || data.store || "-";
+
     const date = data["תאריך"] || data.date || "";
-    const rawProductName = String(data["שם המוצר"] || data.product_name || "");
-    const price = parseFloat(data["מחיר המוצר"] ?? data["מחיר"] ?? data.price);
+
+    const productName = String(
+      data["שם המוצר"] || data.product_name || ""
+    ).trim();
+
+    const price = parsePrice(
+      data["מחיר המוצר"] ?? data["מחיר"] ?? data.price
+    );
+
+    if (
+      !productName ||
+      productName.toLowerCase() === "empty" ||
+      !Number.isFinite(price)
+    ) {
+      return;
+    }
 
     const category = normalizeCategory(
-      rawProductName,
+      productName,
       data["מחלקה"] || data.category
     );
 
-    if (!rawProductName || rawProductName === "empty" || isNaN(price)) return;
-
-    const key = rawProductName.trim();
-
-    if (!key) return;
+    const key = productName;
 
     if (!aggregatedProducts[key]) {
       aggregatedProducts[key] = {
-        name: key,
+        name: productName,
         latestPrice: price,
         latestStore: store,
         latestDate: date,
-        category: category,
+        category,
         history: []
       };
     }
 
-    const currentGroup = aggregatedProducts[key];
+    const product = aggregatedProducts[key];
 
-    currentGroup.history.push({
+    product.history.push({
       rowNumber,
       store,
       date,
       price,
-      rawProductName,
+      rawProductName: productName,
       category
     });
 
-    if (!currentGroup.latestDate || new Date(date) >= new Date(currentGroup.latestDate)) {
-      currentGroup.latestPrice = price;
-      currentGroup.latestStore = store;
-      currentGroup.latestDate = date;
-      currentGroup.category = category;
+    const newDate = Date.parse(date);
+    const oldDate = Date.parse(product.latestDate);
+
+    if (
+      !product.latestDate ||
+      (Number.isFinite(newDate) &&
+        (!Number.isFinite(oldDate) || newDate >= oldDate))
+    ) {
+      product.latestPrice = price;
+      product.latestStore = store;
+      product.latestDate = date;
+      product.category = category;
     }
   });
 
   renderProductsGrid();
 }
 
-// 4. הצגת מוצרים לפי מחלקה
+// ======================================
+// הצגת המוצרים באתר
+// ======================================
+
 function renderProductsGrid() {
   const productsList = document.getElementById("productsList");
-  productsList.innerHTML = "";
 
-  const keys = Object.keys(aggregatedProducts);
+  if (!productsList) return;
+
+  productsList.replaceChildren();
+
   let count = 0;
 
-  keys.forEach(key => {
-    const product = aggregatedProducts[key];
-
-    if (activeCategory !== "הכל" && product.category !== activeCategory) {
+  Object.values(aggregatedProducts).forEach(product => {
+    if (
+      activeCategory !== "הכל" &&
+      product.category !== activeCategory
+    ) {
       return;
     }
 
     count++;
 
-    const card = document.createElement("div");
-    card.className = "product-card";
-    card.setAttribute("data-category", product.category);
+    const card = makeElement("div", undefined, "product-card");
+
+    card.dataset.category = product.category;
+    card.style.cursor = "pointer";
+
     card.onclick = () => showPrices(product.name);
 
-    card.innerHTML = `
-      <div style="flex: 1;">
-        <strong class="product-title" style="font-size: 15px; color: #1e293b;">${product.name}</strong>
-        <div style="font-size: 12px; color: #64748b; margin-top: 2px;">
-          ${product.latestStore} <span style="color: #94a3b8;">(${product.latestDate})</span>
-        </div>
-        <span class="category-tag">${product.category}</span>
-      </div>
-      <div style="font-weight: 700; color: #16a34a; font-size: 16px;">₪${product.latestPrice.toFixed(2)}</div>
+    const info = document.createElement("div");
+    info.style.flex = "1";
+
+    const name = makeElement(
+      "strong",
+      product.name,
+      "product-title"
+    );
+
+    name.style.cssText = `
+      font-size:15px;
+      color:#1e293b;
     `;
+
+    const details = makeElement(
+      "div",
+      `${product.latestStore} (${product.latestDate})`
+    );
+
+    details.style.cssText = `
+      font-size:12px;
+      color:#64748b;
+      margin-top:3px;
+    `;
+
+    const category = makeElement(
+      "span",
+      product.category,
+      "category-tag"
+    );
+
+    info.append(name, details, category);
+
+    const price = makeElement(
+      "div",
+      formatPrice(product.latestPrice)
+    );
+
+    price.style.cssText = `
+      font-weight:700;
+      color:#16a34a;
+      font-size:16px;
+    `;
+
+    card.append(info, price);
 
     productsList.appendChild(card);
   });
 
   if (count === 0) {
-    productsList.innerHTML = "<p style='text-align:center; color:#888; padding:20px;'>אין מוצרים במחלקה זו</p>";
+    const empty = makeElement(
+      "p",
+      "אין מוצרים במחלקה זו"
+    );
+
+    empty.style.cssText = `
+      text-align:center;
+      color:#888;
+      padding:20px;
+    `;
+
+    productsList.appendChild(empty);
   }
 
   filterProducts();
 }
 
-function selectCategory(category) {
-  activeCategory = category;
+// ======================================
+// הצגת היסטוריית מחירים
+// ======================================
 
-  const buttons = document.querySelectorAll(".cat-btn");
-
-  buttons.forEach(btn => {
-    btn.classList.toggle(
-      "active",
-      btn.textContent.trim().startsWith(category + " ")
-    );
-  });
-
-  renderProductsGrid();
-}
-
-// 5. הצגת פופאפ היסטוריית מחירים
 function showPrices(productName) {
   const product = aggregatedProducts[productName];
 
@@ -355,257 +690,359 @@ function showPrices(productName) {
 
   cancelEdit();
 
-  document.getElementById("modalProductName").innerText = product.name;
-
+  const title = document.getElementById("modalProductName");
   const tbody = document.getElementById("modalPriceTableBody");
-  tbody.innerHTML = "";
+  const modal = document.getElementById("priceModal");
 
-  const sortedHistory = [...product.history].sort(
-    (a, b) => new Date(b.date) - new Date(a.date)
-  );
+  if (!tbody || !modal) return;
 
-  sortedHistory.forEach(item => {
+  if (title) title.textContent = product.name;
+
+  tbody.replaceChildren();
+
+  const history = [...product.history].sort((a, b) => {
+    return (Date.parse(b.date) || 0) -
+      (Date.parse(a.date) || 0);
+  });
+
+  history.forEach(item => {
     const tr = document.createElement("tr");
 
-    [
+    const values = [
       item.store || "-",
-      `₪${item.price.toFixed(2)}`,
+      formatPrice(item.price),
       item.date || "-",
       item.category || "שונות"
-    ].forEach(value => {
-      const cell = document.createElement("td");
-      cell.textContent = value;
-      tr.appendChild(cell);
+    ];
+
+    values.forEach(value => {
+      const td = makeElement("td", value);
+      tr.appendChild(td);
     });
 
     const actions = document.createElement("td");
     actions.style.whiteSpace = "nowrap";
 
-    const edit = document.createElement("button");
-    edit.textContent = "✏️";
+    const edit = makeElement("button", "✏️");
+    edit.type = "button";
     edit.title = "עריכה";
-    edit.onclick = () => openEditForm(
-      item.rowNumber,
-      item.store,
-      item.rawProductName,
-      item.price,
-      item.date,
-      item.category
-    );
 
-    const del = document.createElement("button");
-    del.textContent = "🗑️";
-    del.title = "מחיקה";
-    del.onclick = () => deleteRow(item.rowNumber);
+    edit.onclick = () => {
+      openEditForm(
+        item.rowNumber,
+        item.store,
+        item.rawProductName,
+        item.price,
+        item.date,
+        item.category
+      );
+    };
 
-    actions.append(edit, del);
+    const remove = makeElement("button", "🗑️");
+    remove.type = "button";
+    remove.title = "מחיקה";
+
+    remove.onclick = () => deleteRow(item.rowNumber);
+
+    actions.append(edit, remove);
     tr.appendChild(actions);
     tbody.appendChild(tr);
   });
 
-  document.getElementById("priceModal").style.display = "flex";
+  modal.style.display = "flex";
 }
 
-// 6. פתיחת טופס עריכה
-function openEditForm(rowNumber, store, productName, price, date, category) {
-  document.getElementById("editRowNumber").value = rowNumber;
-  document.getElementById("editStore").value = store;
-  document.getElementById("editProductName").value = productName;
+// ======================================
+// עריכת מוצר
+// ======================================
+
+function openEditForm(
+  rowNumber,
+  store,
+  productName,
+  price,
+  date,
+  category
+) {
+  document.getElementById("editRowNumber").value =
+    rowNumber ?? "";
+
+  document.getElementById("editStore").value = store || "";
+  document.getElementById("editProductName").value = productName || "";
   document.getElementById("editPrice").value = price;
-  document.getElementById("editDate").value = date;
+  document.getElementById("editDate").value = date || "";
 
-  const catSelect = document.getElementById("editCategory");
+  const categorySelect = document.getElementById("editCategory");
 
-  if (catSelect) {
-    catSelect.value = category || "שונות";
+  if (categorySelect) {
+    categorySelect.value = category || "שונות";
   }
 
-  document.getElementById("editFormContainer").style.display = "block";
+  document.getElementById("editFormContainer").style.display =
+    "block";
 }
 
 function cancelEdit() {
-  document.getElementById("editFormContainer").style.display = "none";
+  const form = document.getElementById("editFormContainer");
+
+  if (form) {
+    form.style.display = "none";
+  }
 }
 
-// 7. שמירת עריכה ושליחה ל-n8n
 async function saveEdit() {
-  const rowNumber = document.getElementById("editRowNumber").value;
-  const store = document.getElementById("editStore").value;
-  const productName = document.getElementById("editProductName").value;
-  const price = parseFloat(document.getElementById("editPrice").value);
-  const date = document.getElementById("editDate").value;
-  const category = document.getElementById("editCategory").value;
+  const rowNumber =
+    document.getElementById("editRowNumber").value;
+
+  const store =
+    document.getElementById("editStore").value;
+
+  const productName =
+    document.getElementById("editProductName").value;
+
+  const price = parsePrice(
+    document.getElementById("editPrice").value
+  );
+
+  const date =
+    document.getElementById("editDate").value;
+
+  const category =
+    document.getElementById("editCategory").value;
 
   if (!rowNumber || rowNumber === "null") {
-    alert("שגיאה בזיהוי שורת המוצר");
+    alert("שגיאה בזיהוי מספר השורה");
+    return;
+  }
+
+  if (!productName.trim() || !Number.isFinite(price)) {
+    alert("יש להזין שם מוצר ומחיר תקינים");
     return;
   }
 
   try {
     const response = await fetch(UPDATE_PRODUCT_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(30000),
+      headers: {
+        "Content-Type": "application/json"
+      },
+      signal: AbortSignal.timeout(ACTION_TIMEOUT),
 
       body: JSON.stringify({
-        row_number: parseInt(rowNumber),
-        store: store,
+        row_number: Number.parseInt(rowNumber, 10),
+        store,
         product_name: productName,
-        price: price,
-        date: date,
-        category: category
+        price,
+        date,
+        category
       })
     });
 
-    if (response.ok) {
-      alert("הנתונים והמחלקה עודכנו בהצלחה! ✅");
-      closeModal();
-      loadProducts();
-    } else {
-      alert("שגיאה בעדכון המוצר");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
 
+    alert("המוצר עודכן בהצלחה ✅");
+
+    closeModal();
+    await loadProducts();
+
   } catch (err) {
-    console.error(err);
-    alert("שגיאה בתקשורת מול השרת");
+    console.error("Update error:", err);
+
+    alert(
+      err.name === "TimeoutError"
+        ? "תם זמן ההמתנה. בדוק אם העדכון בוצע לפני ניסיון נוסף."
+        : "שגיאה בעדכון המוצר"
+    );
   }
 }
 
-// 8. מחיקת שורה
+// ======================================
+// מחיקת מוצר
+// ======================================
+
 async function deleteRow(rowNumber) {
-  if (!rowNumber || rowNumber === "null") {
-    alert("לא ניתן לזהות את מספר השורה למחיקה");
+  if (rowNumber == null || rowNumber === "null" || rowNumber === "") {
+    alert("לא ניתן לזהות את מספר השורה");
     return;
   }
 
-  if (!confirm("האם אתה בטוח שברצונך למחוק רכישה זו?")) return;
+  if (!confirm("למחוק את הרכישה הזאת?")) return;
 
   try {
     const response = await fetch(DELETE_PRODUCT_URL, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(30000),
+
+      headers: {
+        "Content-Type": "application/json"
+      },
+
+      signal: AbortSignal.timeout(ACTION_TIMEOUT),
 
       body: JSON.stringify({
-        row_number: parseInt(rowNumber)
+        row_number: Number.parseInt(rowNumber, 10)
       })
     });
 
-    if (response.ok) {
-      alert("המוצר נמחק בהצלחה! ✅");
-      closeModal();
-      loadProducts();
-    } else {
-      alert("שגיאה במחיקת המוצר");
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
 
+    alert("המוצר נמחק בהצלחה ✅");
+
+    closeModal();
+    await loadProducts();
+
   } catch (err) {
-    console.error(err);
-    alert("שגיאה בתקשורת מול השרת");
+    console.error("Delete error:", err);
+
+    alert(
+      err.name === "TimeoutError"
+        ? "תם זמן ההמתנה. בדוק אם המחיקה בוצעה לפני ניסיון נוסף."
+        : "שגיאה במחיקת המוצר"
+    );
   }
 }
 
-// 9. המלצת סל על בסיס מוצרים שנרכשו ביותר מחנות אחת
+// ======================================
+// השוואת סל מחירים בין חנויות
+// ======================================
+
 function calculateRecommendation(items) {
-  const container = document.getElementById("recommendationBox");
+  const container =
+    document.getElementById("recommendationBox");
 
   if (!container) return;
 
-  const byProduct = new Map();
+  container.replaceChildren();
+
+  const productsByStore = new Map();
 
   items.forEach(item => {
-    const data = item && item.json ? item.json : (item || {});
+    const data = getItemData(item);
 
-    const store = String(data["שם החנות"] || data.store || "").trim();
-    const name = String(data["שם המוצר"] || data.product_name || "").trim();
-    const price = parseFloat(data["מחיר המוצר"] ?? data["מחיר"] ?? data.price);
+    const store = String(
+      data["שם החנות"] || data.store || ""
+    ).trim();
 
-    if (!store || !name || name === "empty" || !Number.isFinite(price)) {
+    const productName = String(
+      data["שם המוצר"] || data.product_name || ""
+    ).trim();
+
+    const price = parsePrice(
+      data["מחיר המוצר"] ?? data["מחיר"] ?? data.price
+    );
+
+    if (
+      !store ||
+      !productName ||
+      !Number.isFinite(price)
+    ) {
       return;
     }
 
-    if (!byProduct.has(name)) {
-      byProduct.set(name, new Map());
+    if (!productsByStore.has(productName)) {
+      productsByStore.set(productName, new Map());
     }
 
-    byProduct.get(name).set(store, price);
+    // המחיר האחרון שנקרא עבור מוצר בחנות.
+    productsByStore.get(productName).set(store, price);
   });
 
-  const overlapping = [...byProduct].filter(
-    ([, stores]) => stores.size >= 2
-  );
+  const overlappingProducts = [...productsByStore.entries()]
+    .filter(([, stores]) => stores.size >= 2);
 
-  container.innerHTML = "";
-
-  if (!overlapping.length) {
-    container.textContent = "💡 השוואת סל: עדיין לא נרכשו מוצרים זהים בחנויות שונות. כאשר יהיו מוצרים חופפים, תוצג כאן השוואה.";
+  if (overlappingProducts.length === 0) {
+    container.textContent =
+      "💡 השוואת סל: עדיין אין מוצרים זהים שנרכשו בחנויות שונות.";
     return;
   }
 
-  // השוואת סל רק כאשר קיימים כל המוצרים החופפים בחנות
-  const stores = [
-    ...new Set(
-      overlapping.flatMap(([, prices]) => [...prices.keys()])
-    )
-  ];
+  const allStores = new Set();
 
-  const completeBaskets = stores.map(store => ({
-    store,
-    prices: overlapping.map(([, prices]) => prices.get(store))
-  })).filter(({ prices }) =>
-    prices.every(price => price !== undefined)
+  overlappingProducts.forEach(([, stores]) => {
+    stores.forEach((price, store) => {
+      allStores.add(store);
+    });
+  });
+
+  // משווים רק סל של מוצרים שקיימים בכל חנות מושווית.
+  const fullBaskets = [];
+
+  allStores.forEach(store => {
+    const prices = overlappingProducts.map(
+      ([, stores]) => stores.get(store)
+    );
+
+    if (prices.every(price => price !== undefined)) {
+      const total = prices.reduce(
+        (sum, price) => sum + price,
+        0
+      );
+
+      fullBaskets.push({
+        store,
+        total
+      });
+    }
+  });
+
+  const title = makeElement(
+    "strong",
+    `💡 השוואת סל - ${overlappingProducts.length} מוצרים חופפים`
   );
 
-  const title = document.createElement("strong");
-  title.textContent = `💡 השוואת סל (${overlapping.length} מוצרים חופפים)`;
   container.appendChild(title);
 
-  const note = document.createElement("p");
-  note.style.color = "#64748b";
-  note.textContent = `נמצאו ${overlapping.length} מוצרים שנרכשו ביותר מחנות אחת.`;
-  container.appendChild(note);
+  if (fullBaskets.length < 2) {
+    const info = makeElement(
+      "p",
+      "נמצאו מוצרים חופפים, אך אין לפחות שתי חנויות עם כל המוצרים האלה. לא ניתן לחשב השוואת סל מלא."
+    );
 
-  if (!completeBaskets.length) {
-    const info = document.createElement("p");
-    info.textContent = "אין חנות שמכילה את כל המוצרים החופפים, ולכן לא ניתן לבצע השוואת סל מלא ואמינה.";
     container.appendChild(info);
     return;
   }
 
-  completeBaskets.map(({ store, prices }) => ({
-    store,
-    total: prices.reduce((sum, price) => sum + price, 0)
-  }))
-  .sort((a, b) => a.total - b.total)
-  .forEach((result, index) => {
-    const line = document.createElement("p");
+  fullBaskets.sort((a, b) => a.total - b.total);
 
-    line.textContent = `${index === 0 ? "🏆 " : ""}${result.store}: ₪${result.total.toFixed(2)}`;
+  const cheapest = fullBaskets[0];
+
+  fullBaskets.forEach((result, index) => {
+    const line = makeElement(
+      "p",
+      `${index === 0 ? "🏆 " : ""}${result.store}: ${formatPrice(result.total)}`
+    );
 
     container.appendChild(line);
   });
+
+  const mostExpensive =
+    fullBaskets[fullBaskets.length - 1];
+
+  const savings =
+    mostExpensive.total - cheapest.total;
+
+  if (savings > 0) {
+    const savingsLine = makeElement(
+      "p",
+      `חיסכון אפשרי בסל המשותף: ${formatPrice(savings)}`
+    );
+
+    savingsLine.style.cssText = `
+      color:#16a34a;
+      font-weight:bold;
+    `;
+
+    container.appendChild(savingsLine);
+  }
 }
 
-// 10. חיפוש טקסט בתוך כרטיסי המוצרים
-function filterProducts() {
-  const query = (
-    document.getElementById("searchInput")?.value || ""
-  ).trim().toLowerCase();
+// ======================================
+// סגירת חלון מוצר
+// ======================================
 
-  const cards = document.querySelectorAll("#productsList .product-card");
-
-  let visible = 0;
-
-  cards.forEach(card => {
-    const match = card.textContent.toLowerCase().includes(query);
-
-    card.style.display = match ? "" : "none";
-
-    if (match) visible++;
-  });
-}
-
-// 11. סגירת חלונית מחירים
 function closeModal() {
   const modal = document.getElementById("priceModal");
 
