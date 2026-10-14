@@ -16,7 +16,7 @@
       <input type="text" id="searchInput" onkeyup="filterProducts()" placeholder="🔍 חפש מוצר (למשל: חלב, לחם)...">
     </div>
 
-    <!-- כפתורי העלאת קבלה (תמיכה בתמונות ו-PDF) -->
+    <!-- כפתורי העלאת קבלה -->
     <div class="action-buttons">
       <label class="btn btn-camera">
         📷 צלם קבלה
@@ -35,11 +35,13 @@
     <div class="category-bar" id="categoryBar">
       <button class="cat-btn active" onclick="selectCategory('הכל')">הכל 🛒</button>
       <button class="cat-btn" onclick="selectCategory('פירות וירקות')">פירות וירקות 🍏</button>
-      <button class="cat-btn" onclick="selectCategory('בשר ועופות')">בשר ועופות 🥩</button>
       <button class="cat-btn" onclick="selectCategory('חלב וביצים')">חלב וביצים 🥛</button>
+      <button class="cat-btn" onclick="selectCategory('סלטים ומקרר')">סלטים ומקרר 🥗</button>
+      <button class="cat-btn" onclick="selectCategory('בשר ועופות')">בשר ועופות 🥩</button>
       <button class="cat-btn" onclick="selectCategory('מוצרי יסוד ומזווה')">מזווה ויסוד 🌾</button>
       <button class="cat-btn" onclick="selectCategory('משקאות')">משקאות 🥤</button>
       <button class="cat-btn" onclick="selectCategory('חומרי ניקוי')">חומרי ניקוי 🧹</button>
+      <button class="cat-btn" onclick="selectCategory('חד פעמי')">חד פעמי 🍽️</button>
       <button class="cat-btn" onclick="selectCategory('שונות')">שונות 📦</button>
     </div>
 
@@ -101,11 +103,13 @@
           <label style="font-size: 12px; color: #64748b;">מחלקה:</label>
           <select id="editCategory" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;">
             <option value="פירות וירקות">פירות וירקות 🍏</option>
-            <option value="בשר ועופות">בשר ועופות 🥩</option>
             <option value="חלב וביצים">חלב וביצים 🥛</option>
+            <option value="סלטים ומקרר">סלטים ומקרר 🥗</option>
+            <option value="בשר ועופות">בשר ועופות 🥩</option>
             <option value="מוצרי יסוד ומזווה">מוצרי יסוד ומזווה 🌾</option>
             <option value="משקאות">משקאות 🥤</option>
             <option value="חומרי ניקוי">חומרי ניקוי 🧹</option>
+            <option value="חד פעמי">חד פעמי 🍽️</option>
             <option value="שונות">שונות 📦</option>
           </select>
         </div>
