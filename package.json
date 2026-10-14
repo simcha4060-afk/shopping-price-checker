@@ -1,0 +1,9 @@
+{
+  "name": "shopping-price-checker-secure",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "google-auth-library": "^9.15.1",
+    "jose": "^5.9.6"
+  }
+}
