@@ -1,67 +1,108 @@
+
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>השוואת מחירי קניות</title>
+
+  <!-- אייקון האתר בלשונית הדפדפן -->
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=2">
+  <link rel="shortcut icon" type="image/png" href="/icon-192.png?v=2">
+  <link rel="apple-touch-icon" href="/icon-192.png?v=2">
+
+  <!-- צבע הדפדפן במכשירים ניידים -->
+  <meta name="theme-color" content="#00bfc3">
+
+  <!-- תיאור האתר -->
+  <meta name="description" content="השוואת מחירי קניות, פענוח קבלות, מעקב אחרי מחירי מוצרים והשוואת מחירים בין חנויות.">
+
+  <!-- עיצוב האתר -->
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
   <div class="container">
+
     <h1>השוואת מחירי קניות</h1>
 
     <!-- סרגל חיפוש -->
     <div class="search-box">
-      <input type="text" id="searchInput" onkeyup="filterProducts()" placeholder="🔍 חפש מוצר (למשל: חלב, לחם)...">
+      <input
+        type="text"
+        id="searchInput"
+        onkeyup="filterProducts()"
+        placeholder="🔍 חפש מוצר (למשל: חלב, לחם)..."
+      >
     </div>
 
     <!-- כפתורי העלאת קבלה -->
     <div class="action-buttons">
+
       <label class="btn btn-camera">
         📷 צלם קבלה
-        <input type="file" accept="image/*" capture="environment" onchange="uploadReceipt(event)" hidden>
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onchange="uploadReceipt(event)"
+          hidden
+        >
       </label>
+
       <label class="btn btn-gallery">
         📁 בחר מהגלריה / מסמכים
-        <input type="file" accept="image/*,application/pdf,.pdf" onchange="uploadReceipt(event)" hidden>
+        <input
+          type="file"
+          accept="image/*,application/pdf,.pdf"
+          onchange="uploadReceipt(event)"
+          hidden
+        >
       </label>
+
     </div>
 
+    <!-- הודעות העלאה -->
     <div id="uploadStatus" class="status-msg"></div>
 
-    <!-- סרגל סינון לפי מחלקות -->
+    <!-- סינון לפי מחלקות -->
     <h2>סינון לפי מחלקה</h2>
-    <div class="category-bar" id="categoryBar">
-      <button class="cat-btn active" onclick="selectCategory('הכל')">הכל 🛒</button>
-      <button class="cat-btn" onclick="selectCategory('פירות וירקות')">פירות וירקות 🍏</button>
-      <button class="cat-btn" onclick="selectCategory('חלב וביצים')">חלב וביצים 🥛</button>
-      <button class="cat-btn" onclick="selectCategory('סלטים ומקרר')">סלטים ומקרר 🥗</button>
-      <button class="cat-btn" onclick="selectCategory('בשר ועופות')">בשר ועופות 🥩</button>
-      <button class="cat-btn" onclick="selectCategory('מוצרי יסוד ומזווה')">מזווה ויסוד 🌾</button>
-      <button class="cat-btn" onclick="selectCategory('משקאות')">משקאות 🥤</button>
-      <button class="cat-btn" onclick="selectCategory('חומרי ניקוי')">חומרי ניקוי 🧹</button>
-      <button class="cat-btn" onclick="selectCategory('חד פעמי')">חד פעמי 🍽️</button>
-      <button class="cat-btn" onclick="selectCategory('שונות')">שונות 📦</button>
-    </div>
 
+    <!-- כפתורי המחלקות נוצרים על ידי app.js -->
+    <div class="category-bar" id="categoryBar"></div>
+
+    <!-- רשימת מוצרים -->
     <h2>מוצרים שנמצאו</h2>
+
     <div id="productsList" class="products-grid"></div>
 
-    <!-- כרטיס המלצת סל -->
+    <!-- המלצת סל -->
     <div id="recommendationBox" class="recommendation-card">
-      <p style="color:#64748b;">טוען נתוני המלצה...</p>
+      <p style="color:#64748b;">
+        טוען נתוני המלצה...
+      </p>
     </div>
+
   </div>
 
-  <!-- Modal היסטוריית מחירים + טופס עריכה -->
+  <!-- חלון היסטוריית מחירים ועריכת מוצרים -->
   <div id="priceModal" class="modal">
+
     <div class="modal-content">
-      <span class="close-btn" onclick="closeModal()">&times;</span>
+
+      <!-- סגירת חלון -->
+      <span
+        class="close-btn"
+        onclick="closeModal()"
+      >&times;</span>
+
       <h3 id="modalProductName">שם המוצר</h3>
-      
+
       <!-- טבלת היסטוריית מחירים -->
       <table class="price-table" id="modalTable">
+
         <thead>
           <tr>
             <th>חנות</th>
@@ -71,58 +112,176 @@
             <th>פעולות</th>
           </tr>
         </thead>
+
         <tbody id="modalPriceTableBody"></tbody>
+
       </table>
 
-      <!-- טופס עריכה מרוכז -->
-      <div id="editFormContainer" style="display: none; margin-top: 15px; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;">
-        <h4 style="margin-bottom: 10px; color: #1e293b;">✏️ עריכת פרטי רכישה ומחלקה</h4>
+      <!-- טופס עריכת מוצר -->
+      <div
+        id="editFormContainer"
+        style="
+          display:none;
+          margin-top:15px;
+          background:#f8fafc;
+          padding:15px;
+          border-radius:10px;
+          border:1px solid #e2e8f0;
+        "
+      >
+
+        <h4 style="margin-bottom:10px;color:#1e293b;">
+          ✏️ עריכת פרטי רכישה ומחלקה
+        </h4>
+
         <input type="hidden" id="editRowNumber">
-        
-        <div style="margin-bottom: 8px;">
-          <label style="font-size: 12px; color: #64748b;">שם החנות:</label>
-          <input type="text" id="editStore" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;">
-        </div>
-        
-        <div style="margin-bottom: 8px;">
-          <label style="font-size: 12px; color: #64748b;">שם המוצר:</label>
-          <input type="text" id="editProductName" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;">
+
+        <!-- שם החנות -->
+        <div style="margin-bottom:8px;">
+
+          <label style="font-size:12px;color:#64748b;">
+            שם החנות:
+          </label>
+
+          <input
+            type="text"
+            id="editStore"
+            style="
+              width:100%;
+              padding:8px;
+              border-radius:6px;
+              border:1px solid #cbd5e1;
+            "
+          >
+
         </div>
 
-        <div style="margin-bottom: 8px;">
-          <label style="font-size: 12px; color: #64748b;">מחיר (₪):</label>
-          <input type="number" step="0.01" id="editPrice" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;">
+        <!-- שם המוצר -->
+        <div style="margin-bottom:8px;">
+
+          <label style="font-size:12px;color:#64748b;">
+            שם המוצר:
+          </label>
+
+          <input
+            type="text"
+            id="editProductName"
+            style="
+              width:100%;
+              padding:8px;
+              border-radius:6px;
+              border:1px solid #cbd5e1;
+            "
+          >
+
         </div>
 
-        <div style="margin-bottom: 8px;">
-          <label style="font-size: 12px; color: #64748b;">תאריך:</label>
-          <input type="date" id="editDate" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;">
+        <!-- מחיר -->
+        <div style="margin-bottom:8px;">
+
+          <label style="font-size:12px;color:#64748b;">
+            מחיר (₪):
+          </label>
+
+          <input
+            type="number"
+            step="0.01"
+            id="editPrice"
+            style="
+              width:100%;
+              padding:8px;
+              border-radius:6px;
+              border:1px solid #cbd5e1;
+            "
+          >
+
         </div>
 
-        <div style="margin-bottom: 12px;">
-          <label style="font-size: 12px; color: #64748b;">מחלקה:</label>
-          <select id="editCategory" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;">
-            <option value="פירות וירקות">פירות וירקות 🍏</option>
-            <option value="חלב וביצים">חלב וביצים 🥛</option>
-            <option value="סלטים ומקרר">סלטים ומקרר 🥗</option>
-            <option value="בשר ועופות">בשר ועופות 🥩</option>
-            <option value="מוצרי יסוד ומזווה">מוצרי יסוד ומזווה 🌾</option>
-            <option value="משקאות">משקאות 🥤</option>
-            <option value="חומרי ניקוי">חומרי ניקוי 🧹</option>
-            <option value="חד פעמי">חד פעמי 🍽️</option>
-            <option value="שונות">שונות 📦</option>
-          </select>
+        <!-- תאריך -->
+        <div style="margin-bottom:8px;">
+
+          <label style="font-size:12px;color:#64748b;">
+            תאריך:
+          </label>
+
+          <input
+            type="date"
+            id="editDate"
+            style="
+              width:100%;
+              padding:8px;
+              border-radius:6px;
+              border:1px solid #cbd5e1;
+            "
+          >
+
         </div>
 
-        <div style="display: flex; gap: 8px;">
-          <button onclick="saveEdit()" style="flex: 1; padding: 8px; background: #16a34a; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">שמור שינויים</button>
-          <button onclick="cancelEdit()" style="padding: 8px; background: #94a3b8; color: white; border: none; border-radius: 6px; cursor: pointer;">ביטול</button>
+        <!-- מחלקה -->
+        <div style="margin-bottom:12px;">
+
+          <label style="font-size:12px;color:#64748b;">
+            מחלקה:
+          </label>
+
+          <!-- המחלקות מתעדכנות אוטומטית מתוך app.js -->
+          <select
+            id="editCategory"
+            style="
+              width:100%;
+              padding:8px;
+              border-radius:6px;
+              border:1px solid #cbd5e1;
+            "
+          ></select>
+
         </div>
+
+        <!-- כפתורי שמירה וביטול -->
+        <div style="display:flex;gap:8px;">
+
+          <button
+            type="button"
+            onclick="saveEdit()"
+            style="
+              flex:1;
+              padding:8px;
+              background:#16a34a;
+              color:white;
+              border:none;
+              border-radius:6px;
+              cursor:pointer;
+              font-weight:bold;
+            "
+          >
+            שמור שינויים
+          </button>
+
+          <button
+            type="button"
+            onclick="cancelEdit()"
+            style="
+              padding:8px;
+              background:#94a3b8;
+              color:white;
+              border:none;
+              border-radius:6px;
+              cursor:pointer;
+            "
+          >
+            ביטול
+          </button>
+
+        </div>
+
       </div>
 
     </div>
+
   </div>
 
-  <script src="app.js"></script>
+  <!-- קוד האתר -->
+  <script src="app.js" defer></script>
+
 </body>
 </html>
