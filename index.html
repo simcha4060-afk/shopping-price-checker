@@ -16,15 +16,15 @@
       <input type="text" id="searchInput" onkeyup="filterProducts()" placeholder="🔍 חפש מוצר (למשל: חלב, לחם)...">
     </div>
 
-    <!-- כפתורי העלאת קבלה -->
+    <!-- כפתורי העלאת קבלה (תמיכה בתמונות ו-PDF) -->
     <div class="action-buttons">
       <label class="btn btn-camera">
         📷 צלם קבלה
         <input type="file" accept="image/*" capture="environment" onchange="uploadReceipt(event)" hidden>
       </label>
       <label class="btn btn-gallery">
-        🖼️ בחר מהגלריה
-        <input type="file" accept="image/*" onchange="uploadReceipt(event)" hidden>
+        📁 בחר מהגלריה / מסמכים
+        <input type="file" accept="image/*,application/pdf,.pdf" onchange="uploadReceipt(event)" hidden>
       </label>
     </div>
 
