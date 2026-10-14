@@ -16,7 +16,7 @@
       <input type="text" id="searchInput" onkeyup="filterProducts()" placeholder="🔍 חפש מוצר (למשל: חלב, לחם)...">
     </div>
 
-    <!-- כפתורי העלאה -->
+    <!-- כפתורי העלאת קבלה -->
     <div class="action-buttons">
       <label class="btn btn-camera">
         📷 צלם קבלה
@@ -30,6 +30,19 @@
 
     <div id="uploadStatus" class="status-msg"></div>
 
+    <!-- סרגל סינון לפי מחלקות -->
+    <h2>סינון לפי מחלקה</h2>
+    <div class="category-bar" id="categoryBar">
+      <button class="cat-btn active" onclick="selectCategory('הכל')">הכל 🛒</button>
+      <button class="cat-btn" onclick="selectCategory('פירות וירקות')">פירות וירקות 🍏</button>
+      <button class="cat-btn" onclick="selectCategory('בשר ועופות')">בשר ועופות 🥩</button>
+      <button class="cat-btn" onclick="selectCategory('חלב וביצים')">חלב וביצים 🥛</button>
+      <button class="cat-btn" onclick="selectCategory('מוצרי יסוד ומזווה')">מזווה ויסוד 🌾</button>
+      <button class="cat-btn" onclick="selectCategory('משקאות')">משקאות 🥤</button>
+      <button class="cat-btn" onclick="selectCategory('חומרי ניקוי')">חומרי ניקוי 🧹</button>
+      <button class="cat-btn" onclick="selectCategory('שונות')">שונות 📦</button>
+    </div>
+
     <h2>מוצרים שנמצאו</h2>
     <div id="productsList" class="products-grid"></div>
 
@@ -39,28 +52,28 @@
     </div>
   </div>
 
-  <!-- Modal היסטוריית מחירים + טופס עריכה -->
+  <!-- Modal היסטוריית מחירים + טופס עריכה ושינוי מחלקה -->
   <div id="priceModal" class="modal">
     <div class="modal-content">
       <span class="close-btn" onclick="closeModal()">&times;</span>
       <h3 id="modalProductName">שם המוצר</h3>
       
-      <!-- טבלת היסטוריית מחירים -->
       <table class="price-table" id="modalTable">
         <thead>
           <tr>
             <th>חנות</th>
             <th>מחיר</th>
             <th>תאריך</th>
+            <th>מחלקה</th>
             <th>פעולות</th>
           </tr>
         </thead>
         <tbody id="modalPriceTableBody"></tbody>
       </table>
 
-      <!-- טופס עריכה מרוכז (מוסתר כברירת מחדל) -->
+      <!-- טופס עריכה מרוכז -->
       <div id="editFormContainer" style="display: none; margin-top: 15px; background: #f8fafc; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0;">
-        <h4 style="margin-bottom: 10px; color: #1e293b;">✏️ עריכת פרטי רכישה</h4>
+        <h4 style="margin-bottom: 10px; color: #1e293b;">✏️ עריכת פרטי רכישה ומחלקה</h4>
         <input type="hidden" id="editRowNumber">
         
         <div style="margin-bottom: 8px;">
@@ -78,9 +91,22 @@
           <input type="number" step="0.01" id="editPrice" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;">
         </div>
 
-        <div style="margin-bottom: 12px;">
+        <div style="margin-bottom: 8px;">
           <label style="font-size: 12px; color: #64748b;">תאריך:</label>
           <input type="date" id="editDate" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;">
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <label style="font-size: 12px; color: #64748b;">מחלקה:</label>
+          <select id="editCategory" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1;">
+            <option value="פירות וירקות">פירות וירקות 🍏</option>
+            <option value="בשר ועופות">בשר ועופות 🥩</option>
+            <option value="חלב וביצים">חלב וביצים 🥛</option>
+            <option value="מוצרי יסוד ומזווה">מוצרי יסוד ומזווה 🌾</option>
+            <option value="משקאות">משקאות 🥤</option>
+            <option value="חומרי ניקוי">חומרי ניקוי 🧹</option>
+            <option value="שונות">שונות 📦</option>
+          </select>
         </div>
 
         <div style="display: flex; gap: 8px;">
