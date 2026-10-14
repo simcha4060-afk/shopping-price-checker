@@ -287,3 +287,105 @@ async function saveEdit() {
 
 // 8. מחיקת שורה
 async function deleteRow(rowNumber) {
+  if (!rowNumber || rowNumber === 'null') {
+    alert("לא ניתן לזהות את מספר השורה למחיקה");
+    return;
+  }
+
+  if (!confirm("האם אתה בטוח שברצונך למחוק רכישה זו?")) return;
+
+  try {
+    const response = await fetch(DELETE_PRODUCT_URL, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ row_number: parseInt(rowNumber) })
+    });
+
+    if (response.ok) {
+      alert("המוצר נמחק בהצלחה! ✅");
+      closeModal();
+      loadProducts();
+    } else {
+      alert("שגיאה במחיקת המוצר");
+    }
+  } catch (err) {
+    console.error(err);
+    alert("שגיאה בתקשורת מול השרת");
+  }
+}
+
+// 9. המלצת סל חכמה למוצרים חופפים בלבד
+function calculateRecommendation(items) {
+  const recommendationContainer = document.getElementById("recommendationBox");
+  if (!recommendationContainer) return;
+
+  const productPricesByStore = {};
+
+  items.forEach(item => {
+    const data = item.json ? item.json : item;
+    const store = data["שם החנות"] || data.store;
+    const productName = (data["שם המוצר"] || data.product_name || "").trim();
+    const price = parseFloat(data["מחיר המוצר"] || data["מחיר"] || data.price);
+
+    if (store && productName && !isNaN(price) && productName !== "empty") {
+      if (!productPricesByStore[productName]) {
+        productPricesByStore[productName] = {};
+      }
+      productPricesByStore[productName][store] = price;
+    }
+  });
+
+  const overlappingProducts = [];
+  const storeComparisonTotals = {};
+
+  Object.keys(productPricesByStore).forEach(productName => {
+    const storesForProduct = Object.keys(productPricesByStore[productName]);
+    
+    if (storesForProduct.length >= 2) {
+      overlappingProducts.push(productName);
+      
+      storesForProduct.forEach(store => {
+        storeComparisonTotals[store] = (storeComparisonTotals[store] || 0) + productPricesByStore[productName][store];
+      });
+    }
+  });
+
+  if (overlappingProducts.length === 0) {
+    recommendationContainer.innerHTML = `
+      <p style="color:#64748b;">💡 <strong>השוואת סל:</strong> עדיין לא נרכשו מוצרים זהים בחנויות שונות.<br>
+      כאשר תעלה קבלה עם מוצרים חופפים שנרכשו ביותר מחנות אחת, תופיע כאן השוואת מחיר מדויקת.</p>
+    `;
+    return;
+  }
+
+  const stores = Object.keys(storeComparisonTotals);
+  let cheapestStore = stores[0];
+
+  stores.forEach(store => {
+    if (storeComparisonTotals[store] < storeComparisonTotals[cheapestStore]) {
+      cheapestStore = store;
+    }
+  });
+
+  recommendationContainer.innerHTML = `
+    <h3>💡 המלצת הקנייה למוצרים חופפים (${overlappingProducts.length} מוצרים)</h3>
+    <p>עבור המוצרים שנקנו בכמה חנויות (<strong>${overlappingProducts.join(', ')}</strong>), החנות המשתלמת ביותר היא <strong>${cheapestStore}</strong> בסך ₪${storeComparisonTotals[cheapestStore].toFixed(2)}!</p>
+  `;
+}
+
+// 10. חיפוש וסינון טקסטואלי
+function filterProducts() {
+  const query = document.getElementById("searchInput").value.toLowerCase();
+  const cards = document.querySelectorAll(".product-card");
+
+  cards.forEach(card => {
+    const text = card.innerText.toLowerCase();
+    const matchesQuery = text.includes(query);
+
+    card.style.display = matchesQuery ? "flex" : "none";
+  });
+}
+
+function closeModal() {
+  document.getElementById("priceModal").style.display = "none";
+}
